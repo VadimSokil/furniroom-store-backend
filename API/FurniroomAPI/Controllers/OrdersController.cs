@@ -12,11 +12,12 @@ namespace FurniroomAPI.Controllers
     public class OrdersController : ControllerBase
     {
         private readonly IOrdersService _ordersService;
+        private readonly ValidationService _validationService;
         public string currentDateTime = DateTime.UtcNow.ToString("dd/MM/yyyy HH:mm:ss") + " UTC";
-        public ValidationService validationService;
-        public OrdersController(IOrdersService ordersService)
+        public OrdersController(IOrdersService ordersService, ValidationService validationService)
         {
             _ordersService = ordersService;
+            _validationService = validationService;
         }
 
         [HttpGet("get-account-orders-list")]
@@ -31,7 +32,7 @@ namespace FurniroomAPI.Controllers
                     Message = "Your query is missing some fields."
                 };
             }
-            else if (!validationService.IsNotEmptyValue(accountId))
+            else if (!_validationService.IsNotEmptyValue(accountId))
             {
                 return new GatewayResponseModel
                 {
@@ -40,7 +41,7 @@ namespace FurniroomAPI.Controllers
                     Message = "Account ID cannot be empty."
                 };
             }
-            else if (!validationService.IsValidDigit(accountId))
+            else if (!_validationService.IsValidDigit(accountId))
             {
                 return new GatewayResponseModel
                 {
@@ -76,7 +77,7 @@ namespace FurniroomAPI.Controllers
                     Message = "Your query is missing some fields."
                 };
             }
-            else if (!validationService.IsNotEmptyValue(order.OrderId))
+            else if (!_validationService.IsNotEmptyValue(order.OrderId))
             {
                 return new GatewayResponseModel
                 {
@@ -85,7 +86,7 @@ namespace FurniroomAPI.Controllers
                     Message = "Order ID cannot be empty."
                 };
             }
-            else if (!validationService.IsValidDigit(order.OrderId))
+            else if (!_validationService.IsValidDigit(order.OrderId))
             {
                 return new GatewayResponseModel
                 {
@@ -94,7 +95,7 @@ namespace FurniroomAPI.Controllers
                     Message = "Order ID must be a positive number."
                 };
             }
-            else if (!validationService.IsNotEmptyValue(order.OrderDate))
+            else if (!_validationService.IsNotEmptyValue(order.OrderDate))
             {
                 return new GatewayResponseModel
                 {
@@ -103,7 +104,7 @@ namespace FurniroomAPI.Controllers
                     Message = "Order date cannot be empty."
                 };
             }
-            else if (!validationService.IsNotEmptyValue(order.AccountId))
+            else if (!_validationService.IsNotEmptyValue(order.AccountId))
             {
                 return new GatewayResponseModel
                 {
@@ -112,7 +113,7 @@ namespace FurniroomAPI.Controllers
                     Message = "Account ID cannot be empty."
                 };
             }
-            else if (!validationService.IsValidDigit(order.AccountId))
+            else if (!_validationService.IsValidDigit(order.AccountId))
             {
                 return new GatewayResponseModel
                 {
@@ -121,7 +122,7 @@ namespace FurniroomAPI.Controllers
                     Message = "Account ID must be a positive number."
                 };
             }
-            else if (!validationService.IsNotEmptyValue(order.PhoneNumber))
+            else if (!_validationService.IsNotEmptyValue(order.PhoneNumber))
             {
                 return new GatewayResponseModel
                 {
@@ -130,7 +131,7 @@ namespace FurniroomAPI.Controllers
                     Message = "Phone number cannot be empty."
                 };
             }
-            else if (!validationService.IsValidPhoneNumber(order.PhoneNumber))
+            else if (!_validationService.IsValidPhoneNumber(order.PhoneNumber))
             {
                 return new GatewayResponseModel
                 {
@@ -139,7 +140,7 @@ namespace FurniroomAPI.Controllers
                     Message = "The phone number should be in the international format: +CCCXXXXXXXXXX, where +CCC is the country code and XXXXXXXXXX is the phone number."
                 };
             }
-            else if (!validationService.IsValidLength(order.PhoneNumber, 20))
+            else if (!_validationService.IsValidLength(order.PhoneNumber, 20))
             {
                 return new GatewayResponseModel
                 {
@@ -148,7 +149,7 @@ namespace FurniroomAPI.Controllers
                     Message = "Phone number cannot exceed 20 characters in length."
                 };
             }
-            else if (!validationService.IsNotEmptyValue(order.Country))
+            else if (!_validationService.IsNotEmptyValue(order.Country))
             {
                 return new GatewayResponseModel
                 {
@@ -157,7 +158,7 @@ namespace FurniroomAPI.Controllers
                     Message = "Country cannot be empty."
                 };
             }
-            else if (!validationService.IsValidLength(order.Country, 100))
+            else if (!_validationService.IsValidLength(order.Country, 100))
             {
                 return new GatewayResponseModel
                 {
@@ -166,7 +167,7 @@ namespace FurniroomAPI.Controllers
                     Message = "Country cannot exceed 100 characters in length."
                 };
             }
-            else if (!validationService.IsNotEmptyValue(order.Region))
+            else if (!_validationService.IsNotEmptyValue(order.Region))
             {
                 return new GatewayResponseModel
                 {
@@ -175,7 +176,7 @@ namespace FurniroomAPI.Controllers
                     Message = "Region cannot be empty."
                 };
             }
-            else if (!validationService.IsValidLength(order.Region, 100))
+            else if (!_validationService.IsValidLength(order.Region, 100))
             {
                 return new GatewayResponseModel
                 {
@@ -184,7 +185,7 @@ namespace FurniroomAPI.Controllers
                     Message = "Region cannot exceed 100 characters in length."
                 };
             }
-            else if (!validationService.IsNotEmptyValue(order.District))
+            else if (!_validationService.IsNotEmptyValue(order.District))
             {
                 return new GatewayResponseModel
                 {
@@ -193,7 +194,7 @@ namespace FurniroomAPI.Controllers
                     Message = "District cannot be empty."
                 };
             }
-            else if (!validationService.IsValidLength(order.District, 100))
+            else if (!_validationService.IsValidLength(order.District, 100))
             {
                 return new GatewayResponseModel
                 {
@@ -202,7 +203,7 @@ namespace FurniroomAPI.Controllers
                     Message = "District cannot exceed 100 characters in length."
                 };
             }
-            else if (!validationService.IsNotEmptyValue(order.City))
+            else if (!_validationService.IsNotEmptyValue(order.City))
             {
                 return new GatewayResponseModel
                 {
@@ -211,7 +212,7 @@ namespace FurniroomAPI.Controllers
                     Message = "City cannot be empty."
                 };
             }
-            else if (!validationService.IsValidLength(order.City, 100))
+            else if (!_validationService.IsValidLength(order.City, 100))
             {
                 return new GatewayResponseModel
                 {
@@ -220,7 +221,7 @@ namespace FurniroomAPI.Controllers
                     Message = "City cannot exceed 100 characters in length."
                 };
             }
-            else if (!validationService.IsNotEmptyValue(order.Village))
+            else if (!_validationService.IsNotEmptyValue(order.Village))
             {
                 return new GatewayResponseModel
                 {
@@ -229,7 +230,7 @@ namespace FurniroomAPI.Controllers
                     Message = "Village cannot be empty."
                 };
             }
-            else if (!validationService.IsValidLength(order.Village, 100))
+            else if (!_validationService.IsValidLength(order.Village, 100))
             {
                 return new GatewayResponseModel
                 {
@@ -238,7 +239,7 @@ namespace FurniroomAPI.Controllers
                     Message = "Village cannot exceed 100 characters in length."
                 };
             }
-            else if (!validationService.IsNotEmptyValue(order.Street))
+            else if (!_validationService.IsNotEmptyValue(order.Street))
             {
                 return new GatewayResponseModel
                 {
@@ -247,7 +248,7 @@ namespace FurniroomAPI.Controllers
                     Message = "Street cannot be empty."
                 };
             }
-            else if (!validationService.IsValidLength(order.Street, 100))
+            else if (!_validationService.IsValidLength(order.Street, 100))
             {
                 return new GatewayResponseModel
                 {
@@ -256,7 +257,7 @@ namespace FurniroomAPI.Controllers
                     Message = "Street cannot exceed 100 characters in length."
                 };
             }
-            else if (!validationService.IsNotEmptyValue(order.HouseNumber))
+            else if (!_validationService.IsNotEmptyValue(order.HouseNumber))
             {
                 return new GatewayResponseModel
                 {
@@ -265,7 +266,7 @@ namespace FurniroomAPI.Controllers
                     Message = "House number cannot be empty."
                 };
             }
-            else if (!validationService.IsValidLength(order.HouseNumber, 20))
+            else if (!_validationService.IsValidLength(order.HouseNumber, 20))
             {
                 return new GatewayResponseModel
                 {
@@ -274,7 +275,7 @@ namespace FurniroomAPI.Controllers
                     Message = "House number cannot exceed 20 characters in length."
                 };
             }
-            else if (!validationService.IsNotEmptyValue(order.ApartmentNumber))
+            else if (!_validationService.IsNotEmptyValue(order.ApartmentNumber))
             {
                 return new GatewayResponseModel
                 {
@@ -283,7 +284,7 @@ namespace FurniroomAPI.Controllers
                     Message = "Apartment number cannot be empty."
                 };
             }
-            else if (!validationService.IsValidLength(order.ApartmentNumber, 20))
+            else if (!_validationService.IsValidLength(order.ApartmentNumber, 20))
             {
                 return new GatewayResponseModel
                 {
@@ -292,7 +293,7 @@ namespace FurniroomAPI.Controllers
                     Message = "Apartment number cannot exceed 20 characters in length."
                 };
             }
-            else if (!validationService.IsNotEmptyValue(order.OrderText))
+            else if (!_validationService.IsNotEmptyValue(order.OrderText))
             {
                 return new GatewayResponseModel
                 {
@@ -301,7 +302,7 @@ namespace FurniroomAPI.Controllers
                     Message = "Order text cannot be empty."
                 };
             }
-            else if (!validationService.IsValidLength(order.OrderText, 5000))
+            else if (!_validationService.IsValidLength(order.OrderText, 5000))
             {
                 return new GatewayResponseModel
                 {
@@ -310,7 +311,7 @@ namespace FurniroomAPI.Controllers
                     Message = "Order text cannot exceed 5000 characters in length."
                 };
             }
-            else if (!validationService.IsNotEmptyValue(order.DeliveryType))
+            else if (!_validationService.IsNotEmptyValue(order.DeliveryType))
             {
                 return new GatewayResponseModel
                 {
@@ -319,7 +320,7 @@ namespace FurniroomAPI.Controllers
                     Message = "Delivery type cannot be empty."
                 };
             }
-            else if (!validationService.IsValidLength(order.DeliveryType, 20))
+            else if (!_validationService.IsValidLength(order.DeliveryType, 20))
             {
                 return new GatewayResponseModel
                 {
@@ -354,7 +355,7 @@ namespace FurniroomAPI.Controllers
                     Message = "Your query is missing some fields."
                 };
             }
-            else if (!validationService.IsNotEmptyValue(question.QuestionId))
+            else if (!_validationService.IsNotEmptyValue(question.QuestionId))
             {
                 return new GatewayResponseModel
                 {
@@ -363,7 +364,7 @@ namespace FurniroomAPI.Controllers
                     Message = "Question ID cannot be empty."
                 };
             }
-            else if (!validationService.IsValidDigit(question.QuestionId))
+            else if (!_validationService.IsValidDigit(question.QuestionId))
             {
                 return new GatewayResponseModel
                 {
@@ -372,7 +373,7 @@ namespace FurniroomAPI.Controllers
                     Message = "Question ID must be a positive number."
                 };
             }
-            else if (!validationService.IsNotEmptyValue(question.QuestionDate))
+            else if (!_validationService.IsNotEmptyValue(question.QuestionDate))
             {
                 return new GatewayResponseModel
                 {
@@ -381,7 +382,7 @@ namespace FurniroomAPI.Controllers
                     Message = "Question date cannot be empty."
                 };
             }
-            else if (!validationService.IsNotEmptyValue(question.UserName))
+            else if (!_validationService.IsNotEmptyValue(question.UserName))
             {
                 return new GatewayResponseModel
                 {
@@ -390,7 +391,7 @@ namespace FurniroomAPI.Controllers
                     Message = "User name cannot be empty."
                 };
             }
-            else if (!validationService.IsValidLength(question.UserName, 50))
+            else if (!_validationService.IsValidLength(question.UserName, 50))
             {
                 return new GatewayResponseModel
                 {
@@ -399,7 +400,7 @@ namespace FurniroomAPI.Controllers
                     Message = "User name cannot exceed 50 characters in length."
                 };
             }
-            else if (!validationService.IsNotEmptyValue(question.PhoneNumber))
+            else if (!_validationService.IsNotEmptyValue(question.PhoneNumber))
             {
                 return new GatewayResponseModel
                 {
@@ -408,7 +409,7 @@ namespace FurniroomAPI.Controllers
                     Message = "Phone number cannot be empty."
                 };
             }
-            else if (!validationService.IsValidPhoneNumber(question.PhoneNumber))
+            else if (!_validationService.IsValidPhoneNumber(question.PhoneNumber))
             {
                 return new GatewayResponseModel
                 {
@@ -417,7 +418,7 @@ namespace FurniroomAPI.Controllers
                     Message = "The phone number should be in the international format: +CCCXXXXXXXXXX, where +CCC is the country code and XXXXXXXXXX is the phone number."
                 };
             }
-            else if (!validationService.IsValidLength(question.PhoneNumber, 20))
+            else if (!_validationService.IsValidLength(question.PhoneNumber, 20))
             {
                 return new GatewayResponseModel
                 {
@@ -426,7 +427,7 @@ namespace FurniroomAPI.Controllers
                     Message = "Phone number cannot exceed 20 characters in length."
                 };
             }
-            else if (!validationService.IsNotEmptyValue(question.Email))
+            else if (!_validationService.IsNotEmptyValue(question.Email))
             {
                 return new GatewayResponseModel
                 {
@@ -435,7 +436,7 @@ namespace FurniroomAPI.Controllers
                     Message = "Email address cannot be empty."
                 };
             }
-            else if (!validationService.IsValidEmail(question.Email))
+            else if (!_validationService.IsValidEmail(question.Email))
             {
                 return new GatewayResponseModel
                 {
@@ -445,7 +446,7 @@ namespace FurniroomAPI.Controllers
                 };
             }
 
-            else if (!validationService.IsValidLength(question.Email, 254))
+            else if (!_validationService.IsValidLength(question.Email, 254))
             {
                 return new GatewayResponseModel
                 {
@@ -454,7 +455,7 @@ namespace FurniroomAPI.Controllers
                     Message = "Email address cannot exceed 254 characters in length."
                 };
             }
-            else if (!validationService.IsNotEmptyValue(question.QuestionText))
+            else if (!_validationService.IsNotEmptyValue(question.QuestionText))
             {
                 return new GatewayResponseModel
                 {
@@ -463,7 +464,7 @@ namespace FurniroomAPI.Controllers
                     Message = "Question text cannot be empty."
                 };
             }
-            else if (!validationService.IsValidLength(question.QuestionText, 5000))
+            else if (!_validationService.IsValidLength(question.QuestionText, 5000))
             {
                 return new GatewayResponseModel
                 {
