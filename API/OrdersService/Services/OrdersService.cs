@@ -46,6 +46,7 @@ namespace OrdersService.Services
             );
         }
 
+
         public async Task<ServiceResponseModel> AddOrderAsync(OrderModel order)
         {
             return await ExecuteAddCommandAsync(
@@ -85,19 +86,14 @@ namespace OrdersService.Services
                     { "@QuestionDate", question.QuestionDate },
                     { "@UserName", question.UserName },
                     { "@PhoneNumber", question.PhoneNumber },
+                    { "Email", question.Email },
                     { "@QuestionText", question.QuestionText }
                 },
                 name: "Question"
                 );
         }
 
-        private async Task<ServiceResponseModel> ExecuteGetCommandAsync<T>(
-            string query,
-            string parameterName,
-            object parameterValue,
-            Func<MySqlDataReader, T> readAction,
-            string notFoundMessage,
-            string successMessage)
+        private async Task<ServiceResponseModel> ExecuteGetCommandAsync<T>(string query, string parameterName, object parameterValue, Func<MySqlDataReader, T> readAction, string notFoundMessage, string successMessage)
         {
             if (parameterValue == null)
             {
@@ -116,9 +112,15 @@ namespace OrdersService.Services
 
                         using (var reader = await command.ExecuteReaderAsync())
                         {
-                            if (await reader.ReadAsync())
+                            var resultData = new List<T>();
+
+                            while (await reader.ReadAsync())
                             {
-                                var resultData = readAction((MySqlDataReader)reader);
+                                resultData.Add(readAction((MySqlDataReader)reader));
+                            }
+
+                            if (resultData.Count > 0)
+                            {
                                 return new ServiceResponseModel
                                 {
                                     Status = true,
@@ -141,6 +143,7 @@ namespace OrdersService.Services
                 return CreateErrorResponse($"An unexpected error occurred: {ex.Message}");
             }
         }
+
 
         private async Task<ServiceResponseModel> ExecuteAddCommandAsync(string uniqueCheckQuery, string addQuery, KeyValuePair<string, object> uniqueParameter, Dictionary<string, object> parameters, string name)
         {
