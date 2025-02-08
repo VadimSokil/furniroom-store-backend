@@ -5,7 +5,7 @@ using OrdersService.Models.Response;
 
 namespace OrdersService.Controllers
 {
-    [Route("api/[orders]")]
+    [Route("orders")]
     [ApiController]
     public class OrdersController : ControllerBase
     {
