@@ -41,7 +41,7 @@ namespace InformationService.Services
             {
                 SetId = reader.GetInt32("SetId"),
                 SubcategoryId = reader.GetInt32("SubcategoryId"),
-                SetName = reader.GetString("SettName"),
+                SetName = reader.GetString("SetName"),
                 SetDescription = reader.GetString("SetDescription"),
                 SetImageUrl = reader.GetString("SetImageUrl")
             });
