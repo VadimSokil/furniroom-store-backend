@@ -21,6 +21,8 @@ namespace FurniroomAPI
             builder.Services.AddHttpClient<IOrdersService, OrdersService>();
             builder.Services.AddHttpClient<IAuthorizationService, AuthorizationService>();
             builder.Services.AddHttpClient<IAccountService, AccountService>();
+            builder.Services.AddHttpClient<ICatalogService, CatalogService>();
+            builder.Services.AddHttpClient<IConditionsService, ConditionsService>();
             builder.Services.AddSingleton<ValidationService>();
             builder.Services.AddSingleton(endpointURL);
 

@@ -10,7 +10,6 @@ namespace FurniroomAPI.Services
     {
         private readonly HttpClient _httpClient;
         private readonly Dictionary<string, string> _endpointURL;
-        public string currentDateTime = DateTime.UtcNow.ToString("dd/MM/yyyy HH:mm:ss") + " UTC";
 
         public AuthorizationService(HttpClient httpClient, Dictionary<string, string> endpointURL)
         {
