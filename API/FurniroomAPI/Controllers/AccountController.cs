@@ -29,16 +29,7 @@ namespace FurniroomAPI.Controllers
                 {
                     Date = currentDateTime,
                     Status = false,
-                    Message = "Your query is missing some fields."
-                };
-            }
-            else if (!_validationService.IsNotEmptyValue(accountId))
-            {
-                return new GatewayResponseModel
-                {
-                    Date = currentDateTime,
-                    Status = false,
-                    Message = "Account ID cannot be empty."
+                    Message = "Some fields of the request are missing or empty."
                 };
             }
             else if (!_validationService.IsValidDigit(accountId))
@@ -73,25 +64,7 @@ namespace FurniroomAPI.Controllers
                 {
                     Date = currentDateTime,
                     Status = false,
-                    Message = "Your query is missing some fields."
-                };
-            }
-            else if (!_validationService.IsNotEmptyValue(changeName.OldName))
-            {
-                return new GatewayResponseModel
-                {
-                    Date = currentDateTime,
-                    Status = false,
-                    Message = "Old name cannot be empty."
-                };
-            }
-            else if (!_validationService.IsNotEmptyValue(changeName.NewName))
-            {
-                return new GatewayResponseModel
-                {
-                    Date = currentDateTime,
-                    Status = false,
-                    Message = "New name cannot be empty."
+                    Message = "Some fields of the request are missing or empty."
                 };
             }
             else if (!_validationService.IsValidLength(changeName.OldName, 50))
@@ -135,25 +108,7 @@ namespace FurniroomAPI.Controllers
                 {
                     Date = currentDateTime,
                     Status = false,
-                    Message = "Your query is missing some fields."
-                };
-            }
-            else if (!_validationService.IsNotEmptyValue(changeEmail.OldEmail))
-            {
-                return new GatewayResponseModel
-                {
-                    Date = currentDateTime,
-                    Status = false,
-                    Message = "Old email address cannot be empty."
-                };
-            }
-            else if (!_validationService.IsNotEmptyValue(changeEmail.NewEmail))
-            {
-                return new GatewayResponseModel
-                {
-                    Date = currentDateTime,
-                    Status = false,
-                    Message = "New email address cannot be empty."
+                    Message = "Some fields of the request are missing or empty."
                 };
             }
             else if (!_validationService.IsValidEmail(changeEmail.OldEmail))
@@ -215,25 +170,7 @@ namespace FurniroomAPI.Controllers
                 {
                     Date = currentDateTime,
                     Status = false,
-                    Message = "Your query is missing some fields."
-                };
-            }
-            else if (!_validationService.IsNotEmptyValue(changePassword.NewPasswordHash))
-            {
-                return new GatewayResponseModel
-                {
-                    Date = currentDateTime,
-                    Status = false,
-                    Message = "New password hash cannot be empty."
-                };
-            }
-            else if (!_validationService.IsNotEmptyValue(changePassword.OldPasswordHash))
-            {
-                return new GatewayResponseModel
-                {
-                    Date = currentDateTime,
-                    Status = false,
-                    Message = "Old password hash cannot be empty."
+                    Message = "Some fields of the request are missing or empty."
                 };
             }
             else if (!_validationService.IsValidLength(changePassword.OldPasswordHash, 128))
@@ -277,16 +214,7 @@ namespace FurniroomAPI.Controllers
                 {
                     Date = currentDateTime,
                     Status = false,
-                    Message = "Your query is missing some fields."
-                };
-            }
-            else if (!_validationService.IsNotEmptyValue(accountId))
-            {
-                return new GatewayResponseModel
-                {
-                    Date = currentDateTime,
-                    Status = false,
-                    Message = "Account ID cannot be empty."
+                    Message = "Some fields of the request are missing or empty."
                 };
             }
             else if (!_validationService.IsValidDigit(accountId))

@@ -2,16 +2,6 @@
 {
     public class ValidationService
     {
-        public bool IsNotEmptyValue(object value)
-        {
-            if (value == null) return false;
-
-            if (value is string str && string.IsNullOrWhiteSpace(str))
-                return false;
-
-            return true;
-        }
-
         public bool IsValidDigit(object value)
         {
             if (value is string str && int.TryParse(str, out int result))
@@ -44,8 +34,6 @@
 
         public bool IsValidLength(string value, int lengthLimit)
         {
-            if (value == null) return false;
-
             return value.Length <= lengthLimit;
         }
 

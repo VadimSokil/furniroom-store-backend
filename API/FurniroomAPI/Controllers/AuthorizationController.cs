@@ -29,16 +29,7 @@ namespace FurniroomAPI.Controllers
                 {
                     Date = currentDateTime,
                     Status = false,
-                    Message = "Your query is missing some fields."
-                };
-            }
-            else if (!_validationService.IsNotEmptyValue(signUp.AccountId))
-            {
-                return new GatewayResponseModel
-                {
-                    Date = currentDateTime,
-                    Status = false,
-                    Message = "Account ID cannot be empty."
+                    Message = "Some fields of the request are missing or empty."
                 };
             }
             else if (!_validationService.IsValidDigit(signUp.AccountId))
@@ -50,15 +41,6 @@ namespace FurniroomAPI.Controllers
                     Message = "Account ID must be a positive number."
                 };
             }
-            else if (!_validationService.IsNotEmptyValue(signUp.AccountName))
-            {
-                return new GatewayResponseModel
-                {
-                    Date = currentDateTime,
-                    Status = false,
-                    Message = "Account name cannot be empty."
-                };
-            }
             else if (!_validationService.IsValidLength(signUp.AccountName, 50))
             {
                 return new GatewayResponseModel
@@ -66,15 +48,6 @@ namespace FurniroomAPI.Controllers
                     Date = currentDateTime,
                     Status = false,
                     Message = "Account name cannot exceed 50 characters in length."
-                };
-            }
-            else if (!_validationService.IsNotEmptyValue(signUp.Email))
-            {
-                return new GatewayResponseModel
-                {
-                    Date = currentDateTime,
-                    Status = false,
-                    Message = "Email address cannot be empty."
                 };
             }
             else if (!_validationService.IsValidEmail(signUp.Email))
@@ -93,15 +66,6 @@ namespace FurniroomAPI.Controllers
                     Date = currentDateTime,
                     Status = false,
                     Message = "Email address cannot exceed 254 characters in length."
-                };
-            }
-            else if (!_validationService.IsNotEmptyValue(signUp.PasswordHash))
-            {
-                return new GatewayResponseModel
-                {
-                    Date = currentDateTime,
-                    Status = false,
-                    Message = "Password hash cannot be empty."
                 };
             }
             else if (!_validationService.IsValidLength(signUp.PasswordHash, 128))
@@ -136,16 +100,7 @@ namespace FurniroomAPI.Controllers
                 {
                     Date = currentDateTime,
                     Status = false,
-                    Message = "Your query is missing some fields."
-                };
-            }
-            else if (!_validationService.IsNotEmptyValue(signIn.Email))
-            {
-                return new GatewayResponseModel
-                {
-                    Date = currentDateTime,
-                    Status = false,
-                    Message = "Email address cannot be empty."
+                    Message = "Some fields of the request are missing or empty."
                 };
             }
             else if (!_validationService.IsValidEmail(signIn.Email))
@@ -164,15 +119,6 @@ namespace FurniroomAPI.Controllers
                     Date = currentDateTime,
                     Status = false,
                     Message = "Email address cannot exceed 254 characters in length."
-                };
-            }
-            else if (!_validationService.IsNotEmptyValue(signIn.PasswordHash))
-            {
-                return new GatewayResponseModel
-                {
-                    Date = currentDateTime,
-                    Status = false,
-                    Message = "Password hash cannot be empty."
                 };
             }
             else if (!_validationService.IsValidLength(signIn.PasswordHash, 128))
@@ -207,16 +153,7 @@ namespace FurniroomAPI.Controllers
                 {
                     Date = currentDateTime,
                     Status = false,
-                    Message = "Your query is missing some fields."
-                };
-            }
-            else if (!_validationService.IsNotEmptyValue(email))
-            {
-                return new GatewayResponseModel
-                {
-                    Date = currentDateTime,
-                    Status = false,
-                    Message = "Email address cannot be empty."
+                    Message = "Some fields of the request are missing or empty."
                 };
             }
             else if (!_validationService.IsValidEmail(email))
@@ -260,16 +197,7 @@ namespace FurniroomAPI.Controllers
                 {
                     Date = currentDateTime,
                     Status = false,
-                    Message = "Your query is missing some fields."
-                };
-            }
-            else if (!_validationService.IsNotEmptyValue(email))
-            {
-                return new GatewayResponseModel
-                {
-                    Date = currentDateTime,
-                    Status = false,
-                    Message = "Email address cannot be empty."
+                    Message = "Some fields of the request are missing or empty."
                 };
             }
             else if (!_validationService.IsValidEmail(email))
@@ -313,16 +241,7 @@ namespace FurniroomAPI.Controllers
                 {
                     Date = currentDateTime,
                     Status = false,
-                    Message = "Your query is missing some fields."
-                };
-            }
-            else if (!_validationService.IsNotEmptyValue(email))
-            {
-                return new GatewayResponseModel
-                {
-                    Date = currentDateTime,
-                    Status = false,
-                    Message = "Email address cannot be empty."
+                    Message = "Some fields of the request are missing or empty."
                 };
             }
             else if (!_validationService.IsValidEmail(email))
