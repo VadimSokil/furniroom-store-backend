@@ -29,7 +29,7 @@ namespace FurniroomAPI.Controllers
                 {
                     Date = currentDateTime,
                     Status = false,
-                    Message = "Some fields of the request are missing or empty."
+                    Message = "Structure of your request is different from what the server expects or has empty fields."
                 };
             }
             else if (!_validationService.IsValidDigit(accountId))
@@ -226,7 +226,7 @@ namespace FurniroomAPI.Controllers
                 {
                     Date = currentDateTime,
                     Status = false,
-                    Message = "Some fields of the request are missing or empty."
+                    Message = "Structure of your request is different from what the server expects or has empty fields."
                 };
             }
             else if (!_validationService.IsValidDigit(question.QuestionId))
