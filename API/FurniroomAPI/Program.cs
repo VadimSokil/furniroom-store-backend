@@ -23,7 +23,7 @@ namespace FurniroomAPI
             builder.Services.AddHttpClient<IAccountService, AccountService>();
             builder.Services.AddHttpClient<ICatalogService, CatalogService>();
             builder.Services.AddHttpClient<IConditionsService, ConditionsService>();
-            builder.Services.AddSingleton<ValidationService>();
+            builder.Services.AddScoped<IValidationService, ValidationService>();
             builder.Services.AddSingleton(endpointURL);
 
 

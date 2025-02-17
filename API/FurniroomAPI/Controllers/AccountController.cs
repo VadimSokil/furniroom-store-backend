@@ -1,7 +1,6 @@
 ﻿using FurniroomAPI.Interfaces;
 using FurniroomAPI.Models.Account;
 using FurniroomAPI.Models.Response;
-using FurniroomAPI.Services;
 using Microsoft.AspNetCore.Mvc;
 using System.ComponentModel.DataAnnotations;
 
@@ -12,9 +11,9 @@ namespace FurniroomAPI.Controllers
     public class AccountController : ControllerBase
     {
         private readonly IAccountService _accountService;
-        private readonly ValidationService _validationService;
+        private readonly IValidationService _validationService;
         public string currentDateTime = DateTime.UtcNow.ToString("dd/MM/yyyy HH:mm:ss") + " UTC";
-        public AccountController(IAccountService accountService, ValidationService validationService)
+        public AccountController(IAccountService accountService, IValidationService validationService)
         {
             _accountService = accountService;
             _validationService = validationService;

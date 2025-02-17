@@ -1,6 +1,8 @@
-﻿namespace FurniroomAPI.Services
+﻿using FurniroomAPI.Interfaces;
+
+namespace FurniroomAPI.Services
 {
-    public class ValidationService
+    public class ValidationService : IValidationService
     {
         public bool IsValidDigit(object value)
         {
