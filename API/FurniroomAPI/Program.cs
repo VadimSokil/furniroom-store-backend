@@ -27,6 +27,7 @@ namespace FurniroomAPI
             builder.Services.AddScoped<IOrdersService, OrdersService>(provider => new OrdersService(connectionString, requests));
             builder.Services.AddScoped<IAuthorizationService, AuthorizationService>(provider => new AuthorizationService(connectionString, serviceEmail, servicePassword, requests));
             builder.Services.AddScoped<IAccountService, AccountService>(provider => new AccountService(connectionString, requests));
+            builder.Services.AddScoped<IValidationService, ValidationService>(provider => new ValidationService());
 
 
 
