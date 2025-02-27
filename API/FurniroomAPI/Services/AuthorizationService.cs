@@ -1,133 +1,357 @@
 ﻿using FurniroomAPI.Interfaces;
 using FurniroomAPI.Models.Authorization;
 using FurniroomAPI.Models.Response;
-using System.Text.Json;
+using MySql.Data.MySqlClient;
+using System.Net.Mail;
+using System.Net;
+using System.Security.Cryptography;
 using System.Text;
 
 namespace FurniroomAPI.Services
 {
     public class AuthorizationService : IAuthorizationService
     {
-        private readonly HttpClient _httpClient;
-        private readonly Dictionary<string, string> _endpointURL;
+        private readonly string _connectionString;
+        private readonly string _serviceEmail;
+        private readonly string _servicePassword;
+        private readonly Dictionary<string, string> _requests;
+        private const string SmtpHost = "smtp.gmail.com";
+        private const int SmtpPort = 587;
 
-        public AuthorizationService(HttpClient httpClient, Dictionary<string, string> endpointURL)
+        public AuthorizationService(string connectionString, string serviceEmail, string servicePassword, Dictionary<string, string> requests)
         {
-            _httpClient = httpClient;
-            _endpointURL = endpointURL;
+            _connectionString = connectionString;
+            _serviceEmail = serviceEmail;
+            _servicePassword = servicePassword;
+            _requests = requests;
         }
 
         public async Task<ServiceResponseModel> CheckEmailAsync(string email)
         {
-            return await GetInformationAsync("CheckEmail", email);
+            try
+            {
+                using (var connection = new MySqlConnection(_connectionString))
+                {
+                    await connection.OpenAsync();
+
+                    using (var command = new MySqlCommand(_requests["CheckEmail"], connection))
+                    {
+                        command.Parameters.AddWithValue("@Email", email);
+                        var result = Convert.ToInt32(await command.ExecuteScalarAsync());
+
+                        if (result > 0)
+                        {
+                            return new ServiceResponseModel
+                            {
+                                Status = true,
+                                Message = "This email address is already in use."
+                            };
+                        }
+                    }
+                }
+
+                return new ServiceResponseModel
+                {
+                    Status = true,
+                    Message = "This email address is available."
+                };
+            }
+            catch (MySqlException ex)
+            {
+                return new ServiceResponseModel
+                {
+                    Status = false,
+                    Message = $"A database error occurred: {ex.Message}"
+                };
+            }
+            catch (Exception ex)
+            {
+                return new ServiceResponseModel
+                {
+                    Status = false,
+                    Message = $"An unexpected error occurred: {ex.Message}"
+                };
+            }
         }
+
 
         public async Task<ServiceResponseModel> GenerateCodeAsync(string email)
         {
-            return await GetInformationAsync("GenerateCode", email);
-        }
+            try
+            {
+                int verificationCode = Random.Shared.Next(1000, 9999);
 
-        public async Task<ServiceResponseModel> SignInAsync(SignInModel signIn)
-        {
-            return await PostInformationAsync("SignIn", signIn);
-        }
+                string messageBody = $"Hi, your verification code: {verificationCode}";
+                await SendEmailAsync(email, messageBody, "Verification code");
 
-        public async Task<ServiceResponseModel> SignUpAsync(SignUpModel signUp)
-        {
-            return await PostInformationAsync("SignUp", signUp);
+                return new ServiceResponseModel
+                {
+                    Status = true,
+                    Message = "Verification code has been generated.",
+                    Data = verificationCode
+                };
+            }
+            catch (MySqlException ex)
+            {
+                return new ServiceResponseModel
+                {
+                    Status = false,
+                    Message = $"A database error occurred: {ex.Message}"
+                };
+            }
+            catch (Exception ex)
+            {
+                return new ServiceResponseModel
+                {
+                    Status = false,
+                    Message = $"An unexpected error occurred: {ex.Message}"
+                };
+            }
+
         }
 
         public async Task<ServiceResponseModel> ResetPasswordAsync(string email)
         {
-            return await PostInformationAsync("ResetPassword", email);
-        }
-
-        private async Task<ServiceResponseModel> GetInformationAsync(string endpointKey, string parameter)
-        {
             try
             {
-                var endpoint = $"{_endpointURL[endpointKey]}?email={Uri.EscapeDataString(parameter)}";
-
-                var response = await _httpClient.GetAsync(endpoint);
-                response.EnsureSuccessStatusCode();
-
-                var responseBody = await response.Content.ReadAsStringAsync();
-
-                return DeserializeResponse(responseBody);
-            }
-            catch (HttpRequestException httpEx)
-            {
-                return CreateErrorResponse($"HTTP request error: {httpEx.Message}");
-            }
-            catch (JsonException jsonEx)
-            {
-                return CreateErrorResponse($"Error parsing service response: {jsonEx.Message}");
-            }
-            catch (Exception ex)
-            {
-                return CreateErrorResponse($"An unexpected error occurred: {ex.Message}");
-            }
-        }
-
-        private async Task<ServiceResponseModel> PostInformationAsync<T>(string endpointKey, T model)
-        {
-            try
-            {
-                var endpoint = _endpointURL[endpointKey];
-
-                var jsonContent = JsonSerializer.Serialize(model);
-                var content = new StringContent(jsonContent, Encoding.UTF8, "application/json");
-
-                var response = await _httpClient.PostAsync(endpoint, content);
-                response.EnsureSuccessStatusCode();
-
-                var responseBody = await response.Content.ReadAsStringAsync();
-
-                return DeserializeResponse(responseBody);
-            }
-            catch (HttpRequestException httpEx)
-            {
-                return CreateErrorResponse($"HTTP request error: {httpEx.Message}");
-            }
-            catch (JsonException jsonEx)
-            {
-                return CreateErrorResponse($"Error parsing service response: {jsonEx.Message}");
-            }
-            catch (Exception ex)
-            {
-                return CreateErrorResponse($"An unexpected error occurred: {ex.Message}");
-            }
-        }
-
-        private ServiceResponseModel DeserializeResponse(string responseBody)
-        {
-            try
-            {
-                var serviceResponse = JsonSerializer.Deserialize<ServiceResponseModel>(responseBody, new JsonSerializerOptions
+                using (var connection = new MySqlConnection(_connectionString))
                 {
-                    PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-                });
+                    await connection.OpenAsync();
 
-                if (serviceResponse?.Status == null)
-                {
-                    return CreateErrorResponse("The data transmitted by the service to the gateway is in an incorrect format");
+                    using (var checkEmailCommand = new MySqlCommand(_requests["CheckEmail"], connection))
+                    {
+                        checkEmailCommand.Parameters.AddWithValue("@Email", email);
+                        var emailExists = Convert.ToInt32(await checkEmailCommand.ExecuteScalarAsync()) > 0;
+
+                        if (!emailExists)
+                        {
+                            return new ServiceResponseModel
+                            {
+                                Status = false,
+                                Message = "Email address is not found."
+                            };
+                        }
+                    }
+
+                    const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+                    string newPassword = new string(Enumerable.Repeat(chars, 8)
+                        .Select(s => s[Random.Shared.Next(s.Length)]).ToArray());
+
+                    string hashedPassword = HashPasswordWithMD5(newPassword);
+
+                    using (var updateCommand = new MySqlCommand(_requests["ResetPassword"], connection))
+                    {
+                        updateCommand.Parameters.AddWithValue("@Email", email);
+                        updateCommand.Parameters.AddWithValue("@PasswordHash", hashedPassword);
+
+                        await updateCommand.ExecuteNonQueryAsync();
+                    }
+
+                    await SendEmailAsync(email, $"Hi, your new password: {newPassword}", "Reset Password");
+
+                    return new ServiceResponseModel
+                    {
+                        Status = true,
+                        Message = "Password successfully reseted.",
+                        Data = newPassword
+                    };
                 }
-                return serviceResponse;
+
+            }
+            catch (MySqlException ex)
+            {
+                return new ServiceResponseModel
+                {
+                    Status = false,
+                    Message = $"Database error: {ex.Message}"
+                };
             }
             catch (Exception ex)
             {
-                return CreateErrorResponse($"Error deserializing response: {ex.Message}");
+                return new ServiceResponseModel
+                {
+                    Status = false,
+                    Message = $"Unexpected error: {ex.Message}"
+                };
             }
         }
 
-        private ServiceResponseModel CreateErrorResponse(string message)
+        public async Task<ServiceResponseModel> SignInAsync(SignInModel signIn)
         {
-            return new ServiceResponseModel
+            try
             {
-                Status = false,
-                Message = message
-            };
+                using (var connection = new MySqlConnection(_connectionString))
+                {
+                    await connection.OpenAsync();
+
+                    using (var command = new MySqlCommand(_requests["SignIn"], connection))
+                    {
+                        command.Parameters.AddWithValue("@Email", signIn.Email);
+                        command.Parameters.AddWithValue("@PasswordHash", signIn.PasswordHash);
+
+                        var result = await command.ExecuteScalarAsync();
+                        if (result == null)
+                        {
+                            return new ServiceResponseModel
+                            {
+                                Status = true,
+                                Message = $"Incorrect email address or password."
+                            };
+                        }
+
+                        return new ServiceResponseModel
+                        {
+                            Status = true,
+                            Message = "Data confirmed.",
+                            Data = result
+                        };
+                    }
+                }
+            }
+            catch (MySqlException ex)
+            {
+                return new ServiceResponseModel
+                {
+                    Status = false,
+                    Message = $"A database error occurred: {ex.Message}"
+                };
+            }
+            catch (Exception ex)
+            {
+                return new ServiceResponseModel
+                {
+                    Status = false,
+                    Message = $"An unexpected error occurred: {ex.Message}"
+                };
+            }
         }
+
+        public async Task<ServiceResponseModel> SignUpAsync(SignUpModel signUp)
+        {
+            try
+            {
+                using (var connection = new MySqlConnection(_connectionString))
+                {
+                    await connection.OpenAsync();
+
+                    using (var checkIdCommand = new MySqlCommand(_requests["CheckAccountId"], connection))
+                    {
+                        checkIdCommand.Parameters.AddWithValue("@AccountId", signUp.AccountId);
+                        var idExists = Convert.ToInt32(await checkIdCommand.ExecuteScalarAsync()) > 0;
+
+                        if (idExists)
+                        {
+                            return new ServiceResponseModel
+                            {
+                                Status = false,
+                                Message = "This Account ID is already in use."
+                            };
+                        }
+                    }
+
+                    using (var checkEmailCommand = new MySqlCommand(_requests["CheckEmail"], connection))
+                    {
+                        checkEmailCommand.Parameters.AddWithValue("@Email", signUp.Email);
+                        var emailExists = Convert.ToInt32(await checkEmailCommand.ExecuteScalarAsync()) > 0;
+
+                        if (emailExists)
+                        {
+                            return new ServiceResponseModel
+                            {
+                                Status = false,
+                                Message = "This Email is already in use."
+                            };
+                        }
+                    }
+
+                    using (var checkNameCommand = new MySqlCommand(_requests["CheckAccountName"], connection))
+                    {
+                        checkNameCommand.Parameters.AddWithValue("@AccountName", signUp.AccountName);
+                        var nameExists = Convert.ToInt32(await checkNameCommand.ExecuteScalarAsync()) > 0;
+
+                        if (nameExists)
+                        {
+                            return new ServiceResponseModel
+                            {
+                                Status = false,
+                                Message = "This Account name is already in use."
+                            };
+                        }
+                    }
+
+                    using (var command = new MySqlCommand(_requests["SignUp"], connection))
+                    {
+                        command.Parameters.AddWithValue("@AccountId", signUp.AccountId);
+                        command.Parameters.AddWithValue("@AccountName", signUp.AccountName);
+                        command.Parameters.AddWithValue("@Email", signUp.Email);
+                        command.Parameters.AddWithValue("@PasswordHash", signUp.PasswordHash);
+
+                        await command.ExecuteNonQueryAsync();
+                    }
+                }
+
+                return new ServiceResponseModel
+                {
+                    Status = true,
+                    Message = "Account successfully created."
+                };
+            }
+            catch (MySqlException ex)
+            {
+                return new ServiceResponseModel
+                {
+                    Status = false,
+                    Message = $"A database error occurred: {ex.Message}"
+                };
+            }
+            catch (Exception ex)
+            {
+                return new ServiceResponseModel
+                {
+                    Status = false,
+                    Message = $"An unexpected error occurred: {ex.Message}"
+                };
+            }
+
+        }
+
+        private async Task SendEmailAsync(string recipientEmail, string messageBody, string subject)
+        {
+            var message = new MailMessage
+            {
+                From = new MailAddress(_serviceEmail, "Furniroom"),
+                Subject = subject,
+                Body = messageBody,
+                IsBodyHtml = false
+            };
+
+            message.To.Add(new MailAddress(recipientEmail));
+
+            using (var smtp = new SmtpClient(SmtpHost, SmtpPort))
+            {
+                smtp.Credentials = new NetworkCredential(_serviceEmail, _servicePassword);
+                smtp.EnableSsl = true;
+
+                await smtp.SendMailAsync(message);
+            }
+        }
+
+        private string HashPasswordWithMD5(string password)
+        {
+            using (MD5 md5 = MD5.Create())
+            {
+                byte[] inputBytes = Encoding.UTF8.GetBytes(password);
+                byte[] hashBytes = md5.ComputeHash(inputBytes);
+
+                StringBuilder sb = new StringBuilder();
+                foreach (byte b in hashBytes)
+                {
+                    sb.Append(b.ToString("x2"));
+                }
+                return sb.ToString();
+            }
+        }
+
 
     }
 }

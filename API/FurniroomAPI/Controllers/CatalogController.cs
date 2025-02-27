@@ -17,10 +17,10 @@ namespace FurniroomAPI.Controllers
         }
 
         [HttpGet("get-categories-list")]
-        public async Task<ActionResult<GatewayResponseModel>> GetCategories()
+        public async Task<ActionResult<APIResponseModel>> GetCategories()
         {
             var serviceResponse = await _catalogService.GetAllCategoriesAsync();
-            var gatewayResponse = new GatewayResponseModel
+            var gatewayResponse = new APIResponseModel
             {
                 Date = currentDateTime,
                 Status = serviceResponse.Status,
@@ -31,10 +31,10 @@ namespace FurniroomAPI.Controllers
         }
 
         [HttpGet("get-subcategories-list")]
-        public async Task<ActionResult<GatewayResponseModel>> GetSubcategories()
+        public async Task<ActionResult<APIResponseModel>> GetSubcategories()
         {
             var serviceResponse = await _catalogService.GetAllSubcategoriesAsync();
-            var gatewayResponse = new GatewayResponseModel
+            var gatewayResponse = new APIResponseModel
             {
                 Date = currentDateTime,
                 Status = serviceResponse.Status,
@@ -45,10 +45,10 @@ namespace FurniroomAPI.Controllers
         }
 
         [HttpGet("get-sets-list")]
-        public async Task<ActionResult<GatewayResponseModel>> GetSets()
+        public async Task<ActionResult<APIResponseModel>> GetSets()
         {
             var serviceResponse = await _catalogService.GetAllSetsAsync();
-            var gatewayResponse = new GatewayResponseModel
+            var gatewayResponse = new APIResponseModel
             {
                 Date = currentDateTime,
                 Status = serviceResponse.Status,
@@ -59,10 +59,10 @@ namespace FurniroomAPI.Controllers
         }
 
         [HttpGet("get-images-list")]
-        public async Task<ActionResult<GatewayResponseModel>> GetImages()
+        public async Task<ActionResult<APIResponseModel>> GetImages()
         {
             var serviceResponse = await _catalogService.GetAllImagesAsync();
-            var gatewayResponse = new GatewayResponseModel
+            var gatewayResponse = new APIResponseModel
             {
                 Date = currentDateTime,
                 Status = serviceResponse.Status,
@@ -73,10 +73,10 @@ namespace FurniroomAPI.Controllers
         }
 
         [HttpGet("get-modules-list")]
-        public async Task<ActionResult<GatewayResponseModel>> GetModules()
+        public async Task<ActionResult<APIResponseModel>> GetModules()
         {
             var serviceResponse = await _catalogService.GetAllModulesAsync();
-            var gatewayResponse = new GatewayResponseModel
+            var gatewayResponse = new APIResponseModel
             {
                 Date = currentDateTime,
                 Status = serviceResponse.Status,

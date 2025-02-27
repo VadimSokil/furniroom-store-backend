@@ -1,6 +1,6 @@
 ﻿namespace FurniroomAPI.Models.Response
 {
-    public class GatewayResponseModel
+    public class APIResponseModel
     {
         public string Date { get; set; }
         public bool Status { get; set; }

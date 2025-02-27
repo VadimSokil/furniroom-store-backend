@@ -20,11 +20,11 @@ namespace FurniroomAPI.Controllers
         }
 
         [HttpGet("get-account-orders-list")]
-        public async Task<ActionResult<GatewayResponseModel>> GetAccountOrders([FromQuery][Required] int? accountId)
+        public async Task<ActionResult<APIResponseModel>> GetAccountOrders([FromQuery][Required] int? accountId)
         {
             if (!ModelState.IsValid)
             {
-                return new GatewayResponseModel
+                return new APIResponseModel
                 {
                     Date = currentDateTime,
                     Status = false,
@@ -33,7 +33,7 @@ namespace FurniroomAPI.Controllers
             }
             else if (!_validationService.IsValidDigit(accountId))
             {
-                return new GatewayResponseModel
+                return new APIResponseModel
                 {
                     Date = currentDateTime,
                     Status = false,
@@ -43,7 +43,7 @@ namespace FurniroomAPI.Controllers
             else
             {
                 var serviceResponse = await _ordersService.GetAccountOrdersAsync((int)accountId);
-                var gatewayResponse = new GatewayResponseModel
+                var gatewayResponse = new APIResponseModel
                 {
                     Date = currentDateTime,
                     Status = serviceResponse.Status,
@@ -56,11 +56,11 @@ namespace FurniroomAPI.Controllers
         }
 
         [HttpPost("add-order")]
-        public async Task<ActionResult<GatewayResponseModel>> AddOrder([FromBody] OrderModel order)
+        public async Task<ActionResult<APIResponseModel>> AddOrder([FromBody] OrderModel order)
         {
             if (!ModelState.IsValid)
             {
-                return new GatewayResponseModel
+                return new APIResponseModel
                 {
                     Date = currentDateTime,
                     Status = false,
@@ -69,7 +69,7 @@ namespace FurniroomAPI.Controllers
             }
             else if (!_validationService.IsValidDigit(order.OrderId))
             {
-                return new GatewayResponseModel
+                return new APIResponseModel
                 {
                     Date = currentDateTime,
                     Status = false,
@@ -78,7 +78,7 @@ namespace FurniroomAPI.Controllers
             }
             else if (!_validationService.IsValidLength(order.OrderDate, 20))
             {
-                return new GatewayResponseModel
+                return new APIResponseModel
                 {
                     Date = currentDateTime,
                     Status = false,
@@ -87,7 +87,7 @@ namespace FurniroomAPI.Controllers
             }
             else if (!_validationService.IsValidDigit(order.AccountId))
             {
-                return new GatewayResponseModel
+                return new APIResponseModel
                 {
                     Date = currentDateTime,
                     Status = false,
@@ -96,7 +96,7 @@ namespace FurniroomAPI.Controllers
             }
             else if (!_validationService.IsValidPhoneNumber(order.PhoneNumber))
             {
-                return new GatewayResponseModel
+                return new APIResponseModel
                 {
                     Date = currentDateTime,
                     Status = false,
@@ -105,7 +105,7 @@ namespace FurniroomAPI.Controllers
             }
             else if (!_validationService.IsValidLength(order.PhoneNumber, 20))
             {
-                return new GatewayResponseModel
+                return new APIResponseModel
                 {
                     Date = currentDateTime,
                     Status = false,
@@ -114,7 +114,7 @@ namespace FurniroomAPI.Controllers
             }
             else if (!_validationService.IsValidLength(order.Country, 100))
             {
-                return new GatewayResponseModel
+                return new APIResponseModel
                 {
                     Date = currentDateTime,
                     Status = false,
@@ -123,7 +123,7 @@ namespace FurniroomAPI.Controllers
             }
             else if (!_validationService.IsValidLength(order.Region, 100))
             {
-                return new GatewayResponseModel
+                return new APIResponseModel
                 {
                     Date = currentDateTime,
                     Status = false,
@@ -132,7 +132,7 @@ namespace FurniroomAPI.Controllers
             }
             else if (!_validationService.IsValidLength(order.District, 100))
             {
-                return new GatewayResponseModel
+                return new APIResponseModel
                 {
                     Date = currentDateTime,
                     Status = false,
@@ -141,7 +141,7 @@ namespace FurniroomAPI.Controllers
             }
             else if (!_validationService.IsValidLength(order.City, 100))
             {
-                return new GatewayResponseModel
+                return new APIResponseModel
                 {
                     Date = currentDateTime,
                     Status = false,
@@ -150,7 +150,7 @@ namespace FurniroomAPI.Controllers
             }
             else if (!_validationService.IsValidLength(order.Village, 100))
             {
-                return new GatewayResponseModel
+                return new APIResponseModel
                 {
                     Date = currentDateTime,
                     Status = false,
@@ -159,7 +159,7 @@ namespace FurniroomAPI.Controllers
             }
             else if (!_validationService.IsValidLength(order.Street, 100))
             {
-                return new GatewayResponseModel
+                return new APIResponseModel
                 {
                     Date = currentDateTime,
                     Status = false,
@@ -168,7 +168,7 @@ namespace FurniroomAPI.Controllers
             }
             else if (!_validationService.IsValidLength(order.HouseNumber, 20))
             {
-                return new GatewayResponseModel
+                return new APIResponseModel
                 {
                     Date = currentDateTime,
                     Status = false,
@@ -177,7 +177,7 @@ namespace FurniroomAPI.Controllers
             }
             else if (!_validationService.IsValidLength(order.ApartmentNumber, 20))
             {
-                return new GatewayResponseModel
+                return new APIResponseModel
                 {
                     Date = currentDateTime,
                     Status = false,
@@ -186,7 +186,7 @@ namespace FurniroomAPI.Controllers
             }
             else if (!_validationService.IsValidLength(order.OrderText, 5000))
             {
-                return new GatewayResponseModel
+                return new APIResponseModel
                 {
                     Date = currentDateTime,
                     Status = false,
@@ -195,7 +195,7 @@ namespace FurniroomAPI.Controllers
             }
             else if (!_validationService.IsValidLength(order.DeliveryType, 20))
             {
-                return new GatewayResponseModel
+                return new APIResponseModel
                 {
                     Date = currentDateTime,
                     Status = false,
@@ -205,7 +205,7 @@ namespace FurniroomAPI.Controllers
             else
             {
                 var serviceResponse = await _ordersService.AddOrderAsync(order);
-                var gatewayResponse = new GatewayResponseModel
+                var gatewayResponse = new APIResponseModel
                 {
                     Date = currentDateTime,
                     Status = serviceResponse.Status,
@@ -217,11 +217,11 @@ namespace FurniroomAPI.Controllers
         }
 
         [HttpPost("add-question")]
-        public async Task<ActionResult<GatewayResponseModel>> AddQuestion([FromBody] QuestionModel question)
+        public async Task<ActionResult<APIResponseModel>> AddQuestion([FromBody] QuestionModel question)
         {
             if (!ModelState.IsValid)
             {
-                return new GatewayResponseModel
+                return new APIResponseModel
                 {
                     Date = currentDateTime,
                     Status = false,
@@ -230,7 +230,7 @@ namespace FurniroomAPI.Controllers
             }
             else if (!_validationService.IsValidDigit(question.QuestionId))
             {
-                return new GatewayResponseModel
+                return new APIResponseModel
                 {
                     Date = currentDateTime,
                     Status = false,
@@ -239,7 +239,7 @@ namespace FurniroomAPI.Controllers
             }
             else if (!_validationService.IsValidLength(question.QuestionDate, 20))
             {
-                return new GatewayResponseModel
+                return new APIResponseModel
                 {
                     Date = currentDateTime,
                     Status = false,
@@ -248,7 +248,7 @@ namespace FurniroomAPI.Controllers
             }
             else if (!_validationService.IsValidLength(question.UserName, 50))
             {
-                return new GatewayResponseModel
+                return new APIResponseModel
                 {
                     Date = currentDateTime,
                     Status = false,
@@ -257,7 +257,7 @@ namespace FurniroomAPI.Controllers
             }
             else if (!_validationService.IsValidPhoneNumber(question.PhoneNumber))
             {
-                return new GatewayResponseModel
+                return new APIResponseModel
                 {
                     Date = currentDateTime,
                     Status = false,
@@ -266,7 +266,7 @@ namespace FurniroomAPI.Controllers
             }
             else if (!_validationService.IsValidLength(question.PhoneNumber, 20))
             {
-                return new GatewayResponseModel
+                return new APIResponseModel
                 {
                     Date = currentDateTime,
                     Status = false,
@@ -275,7 +275,7 @@ namespace FurniroomAPI.Controllers
             }
             else if (!_validationService.IsValidEmail(question.Email))
             {
-                return new GatewayResponseModel
+                return new APIResponseModel
                 {
                     Date = currentDateTime,
                     Status = false,
@@ -285,7 +285,7 @@ namespace FurniroomAPI.Controllers
 
             else if (!_validationService.IsValidLength(question.Email, 254))
             {
-                return new GatewayResponseModel
+                return new APIResponseModel
                 {
                     Date = currentDateTime,
                     Status = false,
@@ -294,7 +294,7 @@ namespace FurniroomAPI.Controllers
             }
             else if (!_validationService.IsValidLength(question.QuestionText, 5000))
             {
-                return new GatewayResponseModel
+                return new APIResponseModel
                 {
                     Date = currentDateTime,
                     Status = false,
@@ -304,7 +304,7 @@ namespace FurniroomAPI.Controllers
             else
             {
                 var serviceResponse = await _ordersService.AddQuestionAsync(question);
-                var gatewayResponse = new GatewayResponseModel
+                var gatewayResponse = new APIResponseModel
                 {
                     Date = currentDateTime,
                     Status = serviceResponse.Status,

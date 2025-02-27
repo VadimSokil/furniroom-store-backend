@@ -20,7 +20,7 @@ namespace FurniroomAPI.Controllers
         public async Task<ActionResult<string>> GetDelivery()
         {
             var serviceResponse = await _conditionsService.GetDeliveryConditionsAsync();
-            var gatewayResponse = new GatewayResponseModel
+            var gatewayResponse = new APIResponseModel
             {
                 Date = currentDateTime,
                 Status = serviceResponse.Status,
@@ -34,7 +34,7 @@ namespace FurniroomAPI.Controllers
         public async Task<ActionResult<string>> GetPayment()
         {
             var serviceResponse = await _conditionsService.GetPaymentConditionsAsync();
-            var gatewayResponse = new GatewayResponseModel
+            var gatewayResponse = new APIResponseModel
             {
                 Date = currentDateTime,
                 Status = serviceResponse.Status,

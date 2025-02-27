@@ -20,11 +20,11 @@ namespace FurniroomAPI.Controllers
         }
 
         [HttpPost("sign-up")]
-        public async Task<ActionResult<GatewayResponseModel>> SignUp([FromBody] SignUpModel signUp)
+        public async Task<ActionResult<APIResponseModel>> SignUp([FromBody] SignUpModel signUp)
         {
             if (!ModelState.IsValid)
             {
-                return new GatewayResponseModel
+                return new APIResponseModel
                 {
                     Date = currentDateTime,
                     Status = false,
@@ -33,7 +33,7 @@ namespace FurniroomAPI.Controllers
             }
             else if (!_validationService.IsValidDigit(signUp.AccountId))
             {
-                return new GatewayResponseModel
+                return new APIResponseModel
                 {
                     Date = currentDateTime,
                     Status = false,
@@ -42,7 +42,7 @@ namespace FurniroomAPI.Controllers
             }
             else if (!_validationService.IsValidLength(signUp.AccountName, 50))
             {
-                return new GatewayResponseModel
+                return new APIResponseModel
                 {
                     Date = currentDateTime,
                     Status = false,
@@ -51,7 +51,7 @@ namespace FurniroomAPI.Controllers
             }
             else if (!_validationService.IsValidEmail(signUp.Email))
             {
-                return new GatewayResponseModel
+                return new APIResponseModel
                 {
                     Date = currentDateTime,
                     Status = false,
@@ -60,7 +60,7 @@ namespace FurniroomAPI.Controllers
             }
             else if (!_validationService.IsValidLength(signUp.Email, 254))
             {
-                return new GatewayResponseModel
+                return new APIResponseModel
                 {
                     Date = currentDateTime,
                     Status = false,
@@ -69,7 +69,7 @@ namespace FurniroomAPI.Controllers
             }
             else if (!_validationService.IsValidLength(signUp.PasswordHash, 128))
             {
-                return new GatewayResponseModel
+                return new APIResponseModel
                 {
                     Date = currentDateTime,
                     Status = false,
@@ -79,7 +79,7 @@ namespace FurniroomAPI.Controllers
             else
             {
                 var serviceResponse = await _authorizationService.SignUpAsync(signUp);
-                var gatewayResponse = new GatewayResponseModel
+                var gatewayResponse = new APIResponseModel
                 {
                     Date = currentDateTime,
                     Status = serviceResponse.Status,
@@ -91,11 +91,11 @@ namespace FurniroomAPI.Controllers
         }
 
         [HttpPost("sign-in")]
-        public async Task<ActionResult<GatewayResponseModel>> SignIn([FromBody] SignInModel signIn)
+        public async Task<ActionResult<APIResponseModel>> SignIn([FromBody] SignInModel signIn)
         {
             if (!ModelState.IsValid)
             {
-                return new GatewayResponseModel
+                return new APIResponseModel
                 {
                     Date = currentDateTime,
                     Status = false,
@@ -104,7 +104,7 @@ namespace FurniroomAPI.Controllers
             }
             else if (!_validationService.IsValidEmail(signIn.Email))
             {
-                return new GatewayResponseModel
+                return new APIResponseModel
                 {
                     Date = currentDateTime,
                     Status = false,
@@ -113,7 +113,7 @@ namespace FurniroomAPI.Controllers
             }
             else if (!_validationService.IsValidLength(signIn.Email, 254))
             {
-                return new GatewayResponseModel
+                return new APIResponseModel
                 {
                     Date = currentDateTime,
                     Status = false,
@@ -122,7 +122,7 @@ namespace FurniroomAPI.Controllers
             }
             else if (!_validationService.IsValidLength(signIn.PasswordHash, 128))
             {
-                return new GatewayResponseModel
+                return new APIResponseModel
                 {
                     Date = currentDateTime,
                     Status = false,
@@ -132,7 +132,7 @@ namespace FurniroomAPI.Controllers
             else
             {
                 var serviceResponse = await _authorizationService.SignInAsync(signIn);
-                var gatewayResponse = new GatewayResponseModel
+                var gatewayResponse = new APIResponseModel
                 {
                     Date = currentDateTime,
                     Status = serviceResponse.Status,
@@ -144,11 +144,11 @@ namespace FurniroomAPI.Controllers
         }
 
         [HttpPost("reset-password")]
-        public async Task<ActionResult<GatewayResponseModel>> ResetPassword([FromBody][Required] string? email)
+        public async Task<ActionResult<APIResponseModel>> ResetPassword([FromBody][Required] string? email)
         {
             if (!ModelState.IsValid)
             {
-                return new GatewayResponseModel
+                return new APIResponseModel
                 {
                     Date = currentDateTime,
                     Status = false,
@@ -157,7 +157,7 @@ namespace FurniroomAPI.Controllers
             }
             else if (!_validationService.IsValidEmail(email))
             {
-                return new GatewayResponseModel
+                return new APIResponseModel
                 {
                     Date = currentDateTime,
                     Status = false,
@@ -166,7 +166,7 @@ namespace FurniroomAPI.Controllers
             }
             else if (!_validationService.IsValidLength(email, 254))
             {
-                return new GatewayResponseModel
+                return new APIResponseModel
                 {
                     Date = currentDateTime,
                     Status = false,
@@ -176,7 +176,7 @@ namespace FurniroomAPI.Controllers
             else
             {
                 var serviceResponse = await _authorizationService.ResetPasswordAsync(email);
-                var gatewayResponse = new GatewayResponseModel
+                var gatewayResponse = new APIResponseModel
                 {
                     Date = currentDateTime,
                     Status = serviceResponse.Status,
@@ -188,11 +188,11 @@ namespace FurniroomAPI.Controllers
         }
 
         [HttpGet("check-email")]
-        public async Task<ActionResult<GatewayResponseModel>> CheckEmail([FromQuery][Required] string? email)
+        public async Task<ActionResult<APIResponseModel>> CheckEmail([FromQuery][Required] string? email)
         {
             if (!ModelState.IsValid)
             {
-                return new GatewayResponseModel
+                return new APIResponseModel
                 {
                     Date = currentDateTime,
                     Status = false,
@@ -201,7 +201,7 @@ namespace FurniroomAPI.Controllers
             }
             else if (!_validationService.IsValidEmail(email))
             {
-                return new GatewayResponseModel
+                return new APIResponseModel
                 {
                     Date = currentDateTime,
                     Status = false,
@@ -210,7 +210,7 @@ namespace FurniroomAPI.Controllers
             }
             else if (!_validationService.IsValidLength(email, 254))
             {
-                return new GatewayResponseModel
+                return new APIResponseModel
                 {
                     Date = currentDateTime,
                     Status = false,
@@ -220,7 +220,7 @@ namespace FurniroomAPI.Controllers
             else
             {
                 var serviceResponse = await _authorizationService.CheckEmailAsync(email);
-                var gatewayResponse = new GatewayResponseModel
+                var gatewayResponse = new APIResponseModel
                 {
                     Date = currentDateTime,
                     Status = serviceResponse.Status,
@@ -232,11 +232,11 @@ namespace FurniroomAPI.Controllers
         }
 
         [HttpGet("generate-vertification-code")]
-        public async Task<ActionResult<GatewayResponseModel>> GenerateCode([FromQuery][Required] string? email)
+        public async Task<ActionResult<APIResponseModel>> GenerateCode([FromQuery][Required] string? email)
         {
             if (!ModelState.IsValid)
             {
-                return new GatewayResponseModel
+                return new APIResponseModel
                 {
                     Date = currentDateTime,
                     Status = false,
@@ -245,7 +245,7 @@ namespace FurniroomAPI.Controllers
             }
             else if (!_validationService.IsValidEmail(email))
             {
-                return new GatewayResponseModel
+                return new APIResponseModel
                 {
                     Date = currentDateTime,
                     Status = false,
@@ -254,7 +254,7 @@ namespace FurniroomAPI.Controllers
             }
             else if (!_validationService.IsValidLength(email, 254))
             {
-                return new GatewayResponseModel
+                return new APIResponseModel
                 {
                     Date = currentDateTime,
                     Status = false,
@@ -264,7 +264,7 @@ namespace FurniroomAPI.Controllers
             else
             {
                 var serviceResponse = await _authorizationService.GenerateCodeAsync(email);
-                var gatewayResponse = new GatewayResponseModel
+                var gatewayResponse = new APIResponseModel
                 {
                     Date = currentDateTime,
                     Status = serviceResponse.Status,

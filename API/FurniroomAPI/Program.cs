@@ -10,21 +10,25 @@ namespace FurniroomAPI
         {
             var builder = WebApplication.CreateBuilder(args);
             var configuration = builder.Configuration;
-            var endpointsSection = configuration.GetSection("Endpoints");
 
-            var endpointURL = new Dictionary<string, string>();
-            foreach (var request in endpointsSection.GetChildren())
+            var connectionString = Environment.GetEnvironmentVariable("connectionString");
+            var serviceEmail = Environment.GetEnvironmentVariable("serviceEmail");
+            var servicePassword = Environment.GetEnvironmentVariable("servicePassword");
+            var requestsSection = configuration.GetSection("Requests");
+
+            var requests = new Dictionary<string, string>();
+            foreach (var request in requestsSection.GetChildren())
             {
-                endpointURL[request.Key] = request.Value;
+                requests[request.Key] = request.Value;
             }
 
-            builder.Services.AddHttpClient<IOrdersService, OrdersService>();
-            builder.Services.AddHttpClient<IAuthorizationService, AuthorizationService>();
-            builder.Services.AddHttpClient<IAccountService, AccountService>();
-            builder.Services.AddHttpClient<ICatalogService, CatalogService>();
-            builder.Services.AddHttpClient<IConditionsService, ConditionsService>();
-            builder.Services.AddScoped<IValidationService, ValidationService>();
-            builder.Services.AddSingleton(endpointURL);
+            builder.Services.AddScoped<ICatalogService, CatalogService>(provider => new CatalogService(connectionString, requests));
+            builder.Services.AddScoped<IConditionsService, ConditionsService>(provider => new ConditionsService(connectionString, requests));
+            builder.Services.AddScoped<IOrdersService, OrdersService>(provider => new OrdersService(connectionString, requests));
+            builder.Services.AddScoped<IAuthorizationService, AuthorizationService>(provider => new AuthorizationService(connectionString, serviceEmail, servicePassword, requests));
+            builder.Services.AddScoped<IAccountService, AccountService>(provider => new AccountService(connectionString, requests));
+
+
 
 
             builder.Services.AddCors(options =>

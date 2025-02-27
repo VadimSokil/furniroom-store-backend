@@ -1,18 +1,20 @@
 ﻿using FurniroomAPI.Interfaces;
+using FurniroomAPI.Models.Conditions;
 using FurniroomAPI.Models.Response;
-using System.Text.Json;
+using MySql.Data.MySqlClient;
+using System.Data;
 
 namespace FurniroomAPI.Services
 {
     public class ConditionsService : IConditionsService
     {
-        private readonly HttpClient _httpClient;
-        private readonly Dictionary<string, string> _endpointURL;
+        private readonly string _connectionString;
+        private readonly Dictionary<string, string> _requests;
 
-        public ConditionsService(HttpClient httpClient, Dictionary<string, string> endpointURL)
+        public ConditionsService(string connectionString, Dictionary<string, string> requests)
         {
-            _httpClient = httpClient;
-            _endpointURL = endpointURL;
+            _connectionString = connectionString;
+            _requests = requests;
         }
 
         public async Task<ServiceResponseModel> GetDeliveryConditionsAsync()
@@ -25,52 +27,46 @@ namespace FurniroomAPI.Services
             return await GetInformationAsync("GetPaymentConditions");
         }
 
-        private async Task<ServiceResponseModel> GetInformationAsync(string endpointKey)
+        private async Task<ServiceResponseModel> GetInformationAsync(string requestKey)
         {
+            var notes = new List<ConditionsModel>();
+
             try
             {
-                var endpoint = _endpointURL[endpointKey];
+                using (var connection = new MySqlConnection(_connectionString))
+                {
+                    await connection.OpenAsync();
 
-                var response = await _httpClient.GetAsync(endpoint);
-                response.EnsureSuccessStatusCode();
+                    using (var command = new MySqlCommand(_requests[requestKey], connection))
+                    {
+                        using (var reader = await command.ExecuteReaderAsync())
+                        {
+                            while (await reader.ReadAsync())
+                            {
+                                notes.Add(new ConditionsModel
+                                {
+                                    NoteId = reader.GetInt32("NoteId"),
+                                    Note = reader.GetString("Note")
+                                });
+                            }
+                        }
+                    }
+                }
 
-                var responseBody = await response.Content.ReadAsStringAsync();
-
-                return DeserializeResponse(responseBody);
+                return new ServiceResponseModel
+                {
+                    Status = true,
+                    Message = "Data retrieved successfully.",
+                    Data = notes
+                };
             }
-            catch (HttpRequestException httpEx)
+            catch (MySqlException ex)
             {
-                return CreateErrorResponse($"HTTP request error: {httpEx.Message}");
-            }
-            catch (JsonException jsonEx)
-            {
-                return CreateErrorResponse($"Error parsing service response: {jsonEx.Message}");
+                return CreateErrorResponse($"A database error occurred: {ex.Message}");
             }
             catch (Exception ex)
             {
                 return CreateErrorResponse($"An unexpected error occurred: {ex.Message}");
-            }
-        }
-
-        private ServiceResponseModel DeserializeResponse(string responseBody)
-        {
-            try
-            {
-                var serviceResponse = JsonSerializer.Deserialize<ServiceResponseModel>(responseBody, new JsonSerializerOptions
-                {
-                    PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-                });
-
-                if (serviceResponse?.Status == null)
-                {
-                    return CreateErrorResponse("The data transmitted by the service to the gateway is in an incorrect format");
-                }
-
-                return serviceResponse;
-            }
-            catch (Exception ex)
-            {
-                return CreateErrorResponse($"Error deserializing response: {ex.Message}");
             }
         }
 
