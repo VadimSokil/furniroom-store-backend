@@ -30,6 +30,7 @@ namespace FurniroomAPI
             builder.Services.AddScoped<IAccountService, AccountService>(provider => new AccountService(connectionString, requests));
             builder.Services.AddScoped<IValidationService, ValidationService>(provider => new ValidationService());
             builder.Services.AddScoped<ILoggingService, LoggingService>(provider => new LoggingService(connectionString, requests));
+            builder.Services.AddHttpContextAccessor();
 
             builder.Services.AddCors(options =>
             {
