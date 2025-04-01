@@ -9,11 +9,12 @@ namespace FurniroomAPI.Controllers
     public class ConditionsController : ControllerBase
     {
         private readonly IConditionsService _conditionsService;
-        public string currentDateTime = DateTime.UtcNow.ToString("dd/MM/yyyy HH:mm:ss") + " UTC";
+        private readonly string _requestDate;
 
-        public ConditionsController(IConditionsService conditionsService)
+        public ConditionsController(IConditionsService conditionsService, Func<DateTime> requestDate)
         {
             _conditionsService = conditionsService;
+            _requestDate = requestDate().ToString("dd/MM/yyyy HH:mm:ss") + " UTC";
         }
 
         [HttpGet("get-delivery-conditions")]
@@ -22,7 +23,7 @@ namespace FurniroomAPI.Controllers
             var serviceResponse = await _conditionsService.GetDeliveryConditionsAsync();
             var gatewayResponse = new APIResponseModel
             {
-                Date = currentDateTime,
+                Date = _requestDate,
                 Status = serviceResponse.Status,
                 Message = serviceResponse.Message,
                 Data = serviceResponse.Data
@@ -36,7 +37,7 @@ namespace FurniroomAPI.Controllers
             var serviceResponse = await _conditionsService.GetPaymentConditionsAsync();
             var gatewayResponse = new APIResponseModel
             {
-                Date = currentDateTime,
+                Date = _requestDate,
                 Status = serviceResponse.Status,
                 Message = serviceResponse.Message,
                 Data = serviceResponse.Data

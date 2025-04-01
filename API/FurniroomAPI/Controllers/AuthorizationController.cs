@@ -12,10 +12,11 @@ namespace FurniroomAPI.Controllers
     {
         private readonly IAuthorizationService _authorizationService;
         private readonly IValidationService _validationService;
-        public string currentDateTime = DateTime.UtcNow.ToString("dd/MM/yyyy HH:mm:ss") + " UTC";
-        public AuthorizationController(IAuthorizationService authorizationService, IValidationService validationService)
+        private readonly string _requestDate;
+        public AuthorizationController(IAuthorizationService authorizationService, Func<DateTime> requestDate, IValidationService validationService)
         {
             _authorizationService = authorizationService;
+            _requestDate = requestDate().ToString("dd/MM/yyyy HH:mm:ss") + " UTC";
             _validationService = validationService;
         }
 
@@ -26,7 +27,7 @@ namespace FurniroomAPI.Controllers
             {
                 return new APIResponseModel
                 {
-                    Date = currentDateTime,
+                    Date = _requestDate,
                     Status = false,
                     Message = "Structure of your request is different from what the server expects or has empty fields."
                 };
@@ -35,7 +36,7 @@ namespace FurniroomAPI.Controllers
             {
                 return new APIResponseModel
                 {
-                    Date = currentDateTime,
+                    Date = _requestDate,
                     Status = false,
                     Message = "Account ID must be a positive number."
                 };
@@ -44,7 +45,7 @@ namespace FurniroomAPI.Controllers
             {
                 return new APIResponseModel
                 {
-                    Date = currentDateTime,
+                    Date = _requestDate,
                     Status = false,
                     Message = "Account name cannot exceed 50 characters in length."
                 };
@@ -53,7 +54,7 @@ namespace FurniroomAPI.Controllers
             {
                 return new APIResponseModel
                 {
-                    Date = currentDateTime,
+                    Date = _requestDate,
                     Status = false,
                     Message = "Email address should be in the format: example@domain.com, where example is the username and domain.com is the domain."
                 };
@@ -62,7 +63,7 @@ namespace FurniroomAPI.Controllers
             {
                 return new APIResponseModel
                 {
-                    Date = currentDateTime,
+                    Date = _requestDate,
                     Status = false,
                     Message = "Email address cannot exceed 254 characters in length."
                 };
@@ -71,7 +72,7 @@ namespace FurniroomAPI.Controllers
             {
                 return new APIResponseModel
                 {
-                    Date = currentDateTime,
+                    Date = _requestDate,
                     Status = false,
                     Message = "Password hash cannot exceed 128 characters in length."
                 };
@@ -81,7 +82,7 @@ namespace FurniroomAPI.Controllers
                 var serviceResponse = await _authorizationService.SignUpAsync(signUp);
                 var gatewayResponse = new APIResponseModel
                 {
-                    Date = currentDateTime,
+                    Date = _requestDate,
                     Status = serviceResponse.Status,
                     Message = serviceResponse.Message,
                     Data = serviceResponse.Data
@@ -97,7 +98,7 @@ namespace FurniroomAPI.Controllers
             {
                 return new APIResponseModel
                 {
-                    Date = currentDateTime,
+                    Date = _requestDate,
                     Status = false,
                     Message = "Structure of your request is different from what the server expects or has empty fields."
                 };
@@ -106,7 +107,7 @@ namespace FurniroomAPI.Controllers
             {
                 return new APIResponseModel
                 {
-                    Date = currentDateTime,
+                    Date = _requestDate,
                     Status = false,
                     Message = "Email address should be in the format: example@domain.com, where example is the username and domain.com is the domain."
                 };
@@ -115,7 +116,7 @@ namespace FurniroomAPI.Controllers
             {
                 return new APIResponseModel
                 {
-                    Date = currentDateTime,
+                    Date = _requestDate,
                     Status = false,
                     Message = "Email address cannot exceed 254 characters in length."
                 };
@@ -124,7 +125,7 @@ namespace FurniroomAPI.Controllers
             {
                 return new APIResponseModel
                 {
-                    Date = currentDateTime,
+                    Date = _requestDate,
                     Status = false,
                     Message = "Password hash cannot exceed 128 characters in length."
                 };
@@ -134,7 +135,7 @@ namespace FurniroomAPI.Controllers
                 var serviceResponse = await _authorizationService.SignInAsync(signIn);
                 var gatewayResponse = new APIResponseModel
                 {
-                    Date = currentDateTime,
+                    Date = _requestDate,
                     Status = serviceResponse.Status,
                     Message = serviceResponse.Message,
                     Data = serviceResponse.Data
@@ -150,7 +151,7 @@ namespace FurniroomAPI.Controllers
             {
                 return new APIResponseModel
                 {
-                    Date = currentDateTime,
+                    Date = _requestDate,
                     Status = false,
                     Message = "Structure of your request is different from what the server expects or has empty fields."
                 };
@@ -159,7 +160,7 @@ namespace FurniroomAPI.Controllers
             {
                 return new APIResponseModel
                 {
-                    Date = currentDateTime,
+                    Date = _requestDate,
                     Status = false,
                     Message = "Email address should be in the format: example@domain.com, where example is the username and domain.com is the domain."
                 };
@@ -168,7 +169,7 @@ namespace FurniroomAPI.Controllers
             {
                 return new APIResponseModel
                 {
-                    Date = currentDateTime,
+                    Date = _requestDate,
                     Status = false,
                     Message = "Email address cannot exceed 254 characters in length."
                 };
@@ -178,7 +179,7 @@ namespace FurniroomAPI.Controllers
                 var serviceResponse = await _authorizationService.ResetPasswordAsync(email);
                 var gatewayResponse = new APIResponseModel
                 {
-                    Date = currentDateTime,
+                    Date = _requestDate,
                     Status = serviceResponse.Status,
                     Message = serviceResponse.Message,
                     Data = serviceResponse.Data
@@ -194,7 +195,7 @@ namespace FurniroomAPI.Controllers
             {
                 return new APIResponseModel
                 {
-                    Date = currentDateTime,
+                    Date = _requestDate,
                     Status = false,
                     Message = "Structure of your request is different from what the server expects or has empty fields."
                 };
@@ -203,7 +204,7 @@ namespace FurniroomAPI.Controllers
             {
                 return new APIResponseModel
                 {
-                    Date = currentDateTime,
+                    Date = _requestDate,
                     Status = false,
                     Message = "Email address should be in the format: example@domain.com, where example is the username and domain.com is the domain."
                 };
@@ -212,7 +213,7 @@ namespace FurniroomAPI.Controllers
             {
                 return new APIResponseModel
                 {
-                    Date = currentDateTime,
+                    Date = _requestDate,
                     Status = false,
                     Message = "Email address cannot exceed 254 characters in length."
                 };
@@ -222,7 +223,7 @@ namespace FurniroomAPI.Controllers
                 var serviceResponse = await _authorizationService.CheckEmailAsync(email);
                 var gatewayResponse = new APIResponseModel
                 {
-                    Date = currentDateTime,
+                    Date = _requestDate,
                     Status = serviceResponse.Status,
                     Message = serviceResponse.Message,
                     Data = serviceResponse.Data
@@ -238,7 +239,7 @@ namespace FurniroomAPI.Controllers
             {
                 return new APIResponseModel
                 {
-                    Date = currentDateTime,
+                    Date = _requestDate,
                     Status = false,
                     Message = "Structure of your request is different from what the server expects or has empty fields."
                 };
@@ -247,7 +248,7 @@ namespace FurniroomAPI.Controllers
             {
                 return new APIResponseModel
                 {
-                    Date = currentDateTime,
+                    Date = _requestDate,
                     Status = false,
                     Message = "Email address should be in the format: example@domain.com, where example is the username and domain.com is the domain."
                 };
@@ -256,7 +257,7 @@ namespace FurniroomAPI.Controllers
             {
                 return new APIResponseModel
                 {
-                    Date = currentDateTime,
+                    Date = _requestDate,
                     Status = false,
                     Message = "Email address cannot exceed 254 characters in length."
                 };
@@ -266,7 +267,7 @@ namespace FurniroomAPI.Controllers
                 var serviceResponse = await _authorizationService.GenerateCodeAsync(email);
                 var gatewayResponse = new APIResponseModel
                 {
-                    Date = currentDateTime,
+                    Date = _requestDate,
                     Status = serviceResponse.Status,
                     Message = serviceResponse.Message,
                     Data = serviceResponse.Data

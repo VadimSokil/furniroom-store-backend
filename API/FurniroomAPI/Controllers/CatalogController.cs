@@ -9,11 +9,12 @@ namespace FurniroomAPI.Controllers
     public class CatalogController : ControllerBase
     {
         private readonly ICatalogService _catalogService;
-        public string currentDateTime = DateTime.UtcNow.ToString("dd/MM/yyyy HH:mm:ss") + " UTC";
+        private readonly string _requestDate;
 
-        public CatalogController(ICatalogService catalogService)
+        public CatalogController(ICatalogService catalogService, Func<DateTime> requestDate)
         {
             _catalogService = catalogService;
+            _requestDate = requestDate().ToString("dd/MM/yyyy HH:mm:ss") + " UTC";
         }
 
         [HttpGet("get-categories-list")]
@@ -22,7 +23,7 @@ namespace FurniroomAPI.Controllers
             var serviceResponse = await _catalogService.GetAllCategoriesAsync();
             var gatewayResponse = new APIResponseModel
             {
-                Date = currentDateTime,
+                Date = _requestDate,
                 Status = serviceResponse.Status,
                 Message = serviceResponse.Message,
                 Data = serviceResponse.Data
@@ -36,7 +37,7 @@ namespace FurniroomAPI.Controllers
             var serviceResponse = await _catalogService.GetAllSubcategoriesAsync();
             var gatewayResponse = new APIResponseModel
             {
-                Date = currentDateTime,
+                Date = _requestDate,
                 Status = serviceResponse.Status,
                 Message = serviceResponse.Message,
                 Data = serviceResponse.Data
@@ -50,7 +51,7 @@ namespace FurniroomAPI.Controllers
             var serviceResponse = await _catalogService.GetAllSetsAsync();
             var gatewayResponse = new APIResponseModel
             {
-                Date = currentDateTime,
+                Date = _requestDate,
                 Status = serviceResponse.Status,
                 Message = serviceResponse.Message,
                 Data = serviceResponse.Data
@@ -64,7 +65,7 @@ namespace FurniroomAPI.Controllers
             var serviceResponse = await _catalogService.GetAllImagesAsync();
             var gatewayResponse = new APIResponseModel
             {
-                Date = currentDateTime,
+                Date = _requestDate,
                 Status = serviceResponse.Status,
                 Message = serviceResponse.Message,
                 Data = serviceResponse.Data
@@ -78,7 +79,7 @@ namespace FurniroomAPI.Controllers
             var serviceResponse = await _catalogService.GetAllModulesAsync();
             var gatewayResponse = new APIResponseModel
             {
-                Date = currentDateTime,
+                Date = _requestDate,
                 Status = serviceResponse.Status,
                 Message = serviceResponse.Message,
                 Data = serviceResponse.Data

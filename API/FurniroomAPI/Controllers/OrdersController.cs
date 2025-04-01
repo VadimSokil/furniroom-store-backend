@@ -12,10 +12,11 @@ namespace FurniroomAPI.Controllers
     {
         private readonly IOrdersService _ordersService;
         private readonly IValidationService _validationService;
-        public string currentDateTime = DateTime.UtcNow.ToString("dd/MM/yyyy HH:mm:ss") + " UTC";
-        public OrdersController(IOrdersService ordersService, IValidationService validationService)
+        private readonly string _requestDate;
+        public OrdersController(IOrdersService ordersService, Func<DateTime> requestDate , IValidationService validationService)
         {
             _ordersService = ordersService;
+            _requestDate = requestDate().ToString("dd/MM/yyyy HH:mm:ss") + " UTC";
             _validationService = validationService;
         }
 
@@ -26,7 +27,7 @@ namespace FurniroomAPI.Controllers
             {
                 return new APIResponseModel
                 {
-                    Date = currentDateTime,
+                    Date = _requestDate,
                     Status = false,
                     Message = "Structure of your request is different from what the server expects or has empty fields."
                 };
@@ -35,7 +36,7 @@ namespace FurniroomAPI.Controllers
             {
                 return new APIResponseModel
                 {
-                    Date = currentDateTime,
+                    Date = _requestDate,
                     Status = false,
                     Message = "Account ID must be a positive number."
                 };
@@ -45,7 +46,7 @@ namespace FurniroomAPI.Controllers
                 var serviceResponse = await _ordersService.GetAccountOrdersAsync((int)accountId);
                 var gatewayResponse = new APIResponseModel
                 {
-                    Date = currentDateTime,
+                    Date = _requestDate,
                     Status = serviceResponse.Status,
                     Message = serviceResponse.Message,
                     Data = serviceResponse.Data
@@ -62,7 +63,7 @@ namespace FurniroomAPI.Controllers
             {
                 return new APIResponseModel
                 {
-                    Date = currentDateTime,
+                    Date = _requestDate,
                     Status = false,
                     Message = "Some fields of the request are missing or empty."
                 };
@@ -71,7 +72,7 @@ namespace FurniroomAPI.Controllers
             {
                 return new APIResponseModel
                 {
-                    Date = currentDateTime,
+                    Date = _requestDate,
                     Status = false,
                     Message = "Order ID must be a positive number."
                 };
@@ -80,7 +81,7 @@ namespace FurniroomAPI.Controllers
             {
                 return new APIResponseModel
                 {
-                    Date = currentDateTime,
+                    Date = _requestDate,
                     Status = false,
                     Message = "Order date cannot exceed 20 characters in length."
                 };
@@ -89,7 +90,7 @@ namespace FurniroomAPI.Controllers
             {
                 return new APIResponseModel
                 {
-                    Date = currentDateTime,
+                    Date = _requestDate,
                     Status = false,
                     Message = "Account ID must be a positive number."
                 };
@@ -98,7 +99,7 @@ namespace FurniroomAPI.Controllers
             {
                 return new APIResponseModel
                 {
-                    Date = currentDateTime,
+                    Date = _requestDate,
                     Status = false,
                     Message = "The phone number should be in the international format: +CCCXXXXXXXXXX, where +CCC is the country code and XXXXXXXXXX is the phone number."
                 };
@@ -107,7 +108,7 @@ namespace FurniroomAPI.Controllers
             {
                 return new APIResponseModel
                 {
-                    Date = currentDateTime,
+                    Date = _requestDate,
                     Status = false,
                     Message = "Phone number cannot exceed 20 characters in length."
                 };
@@ -116,7 +117,7 @@ namespace FurniroomAPI.Controllers
             {
                 return new APIResponseModel
                 {
-                    Date = currentDateTime,
+                    Date = _requestDate,
                     Status = false,
                     Message = "Country cannot exceed 100 characters in length."
                 };
@@ -125,7 +126,7 @@ namespace FurniroomAPI.Controllers
             {
                 return new APIResponseModel
                 {
-                    Date = currentDateTime,
+                    Date = _requestDate,
                     Status = false,
                     Message = "Region cannot exceed 100 characters in length."
                 };
@@ -134,7 +135,7 @@ namespace FurniroomAPI.Controllers
             {
                 return new APIResponseModel
                 {
-                    Date = currentDateTime,
+                    Date = _requestDate,
                     Status = false,
                     Message = "District cannot exceed 100 characters in length."
                 };
@@ -143,7 +144,7 @@ namespace FurniroomAPI.Controllers
             {
                 return new APIResponseModel
                 {
-                    Date = currentDateTime,
+                    Date = _requestDate,
                     Status = false,
                     Message = "City cannot exceed 100 characters in length."
                 };
@@ -152,7 +153,7 @@ namespace FurniroomAPI.Controllers
             {
                 return new APIResponseModel
                 {
-                    Date = currentDateTime,
+                    Date = _requestDate,
                     Status = false,
                     Message = "Village cannot exceed 100 characters in length."
                 };
@@ -161,7 +162,7 @@ namespace FurniroomAPI.Controllers
             {
                 return new APIResponseModel
                 {
-                    Date = currentDateTime,
+                    Date = _requestDate,
                     Status = false,
                     Message = "Street cannot exceed 100 characters in length."
                 };
@@ -170,7 +171,7 @@ namespace FurniroomAPI.Controllers
             {
                 return new APIResponseModel
                 {
-                    Date = currentDateTime,
+                    Date = _requestDate,
                     Status = false,
                     Message = "House number cannot exceed 20 characters in length."
                 };
@@ -179,7 +180,7 @@ namespace FurniroomAPI.Controllers
             {
                 return new APIResponseModel
                 {
-                    Date = currentDateTime,
+                    Date = _requestDate,
                     Status = false,
                     Message = "Apartment number cannot exceed 20 characters in length."
                 };
@@ -188,7 +189,7 @@ namespace FurniroomAPI.Controllers
             {
                 return new APIResponseModel
                 {
-                    Date = currentDateTime,
+                    Date = _requestDate,
                     Status = false,
                     Message = "Order text cannot exceed 5000 characters in length."
                 };
@@ -197,7 +198,7 @@ namespace FurniroomAPI.Controllers
             {
                 return new APIResponseModel
                 {
-                    Date = currentDateTime,
+                    Date = _requestDate,
                     Status = false,
                     Message = "Delivery type cannot exceed 20 characters in length."
                 };
@@ -207,7 +208,7 @@ namespace FurniroomAPI.Controllers
                 var serviceResponse = await _ordersService.AddOrderAsync(order);
                 var gatewayResponse = new APIResponseModel
                 {
-                    Date = currentDateTime,
+                    Date = _requestDate,
                     Status = serviceResponse.Status,
                     Message = serviceResponse.Message,
                     Data = serviceResponse.Data
@@ -223,7 +224,7 @@ namespace FurniroomAPI.Controllers
             {
                 return new APIResponseModel
                 {
-                    Date = currentDateTime,
+                    Date = _requestDate,
                     Status = false,
                     Message = "Structure of your request is different from what the server expects or has empty fields."
                 };
@@ -232,7 +233,7 @@ namespace FurniroomAPI.Controllers
             {
                 return new APIResponseModel
                 {
-                    Date = currentDateTime,
+                    Date = _requestDate,
                     Status = false,
                     Message = "Question ID must be a positive number."
                 };
@@ -241,7 +242,7 @@ namespace FurniroomAPI.Controllers
             {
                 return new APIResponseModel
                 {
-                    Date = currentDateTime,
+                    Date = _requestDate,
                     Status = false,
                     Message = "Question date cannot exceed 20 characters in length."
                 };
@@ -250,7 +251,7 @@ namespace FurniroomAPI.Controllers
             {
                 return new APIResponseModel
                 {
-                    Date = currentDateTime,
+                    Date = _requestDate,
                     Status = false,
                     Message = "User name cannot exceed 50 characters in length."
                 };
@@ -259,7 +260,7 @@ namespace FurniroomAPI.Controllers
             {
                 return new APIResponseModel
                 {
-                    Date = currentDateTime,
+                    Date = _requestDate,
                     Status = false,
                     Message = "The phone number should be in the international format: +CCCXXXXXXXXXX, where +CCC is the country code and XXXXXXXXXX is the phone number."
                 };
@@ -268,7 +269,7 @@ namespace FurniroomAPI.Controllers
             {
                 return new APIResponseModel
                 {
-                    Date = currentDateTime,
+                    Date = _requestDate,
                     Status = false,
                     Message = "Phone number cannot exceed 20 characters in length."
                 };
@@ -277,7 +278,7 @@ namespace FurniroomAPI.Controllers
             {
                 return new APIResponseModel
                 {
-                    Date = currentDateTime,
+                    Date = _requestDate,
                     Status = false,
                     Message = "Email address should be in the format: example@domain.com, where example is the username and domain.com is the domain."
                 };
@@ -287,7 +288,7 @@ namespace FurniroomAPI.Controllers
             {
                 return new APIResponseModel
                 {
-                    Date = currentDateTime,
+                    Date = _requestDate,
                     Status = false,
                     Message = "Email address cannot exceed 254 characters in length."
                 };
@@ -296,7 +297,7 @@ namespace FurniroomAPI.Controllers
             {
                 return new APIResponseModel
                 {
-                    Date = currentDateTime,
+                    Date = _requestDate,
                     Status = false,
                     Message = "Question text cannot exceed 5000 characters in length."
                 };
@@ -306,7 +307,7 @@ namespace FurniroomAPI.Controllers
                 var serviceResponse = await _ordersService.AddQuestionAsync(question);
                 var gatewayResponse = new APIResponseModel
                 {
-                    Date = currentDateTime,
+                    Date = _requestDate,
                     Status = serviceResponse.Status,
                     Message = serviceResponse.Message,
                     Data = serviceResponse.Data

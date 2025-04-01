@@ -12,10 +12,11 @@ namespace FurniroomAPI.Controllers
     {
         private readonly IAccountService _accountService;
         private readonly IValidationService _validationService;
-        public string currentDateTime = DateTime.UtcNow.ToString("dd/MM/yyyy HH:mm:ss") + " UTC";
-        public AccountController(IAccountService accountService, IValidationService validationService)
+        private readonly string _requestDate;
+        public AccountController(IAccountService accountService, Func<DateTime> requestDate, IValidationService validationService)
         {
             _accountService = accountService;
+            _requestDate = requestDate().ToString("dd/MM/yyyy HH:mm:ss") + " UTC";
             _validationService = validationService;
         }
 
@@ -26,7 +27,7 @@ namespace FurniroomAPI.Controllers
             {
                 return new APIResponseModel
                 {
-                    Date = currentDateTime,
+                    Date = _requestDate,
                     Status = false,
                     Message = "Structure of your request is different from what the server expects or has empty fields."
                 };
@@ -35,7 +36,7 @@ namespace FurniroomAPI.Controllers
             {
                 return new APIResponseModel
                 {
-                    Date = currentDateTime,
+                    Date = _requestDate,
                     Status = false,
                     Message = "Account ID must be a positive number."
                 };
@@ -45,7 +46,7 @@ namespace FurniroomAPI.Controllers
                 var serviceResponse = await _accountService.GetAccountInformationAsync((int)accountId);
                 var gatewayResponse = new APIResponseModel
                 {
-                    Date = currentDateTime,
+                    Date = _requestDate,
                     Status = serviceResponse.Status,
                     Message = serviceResponse.Message,
                     Data = serviceResponse.Data
@@ -61,7 +62,7 @@ namespace FurniroomAPI.Controllers
             {
                 return new APIResponseModel
                 {
-                    Date = currentDateTime,
+                    Date = _requestDate,
                     Status = false,
                     Message = "Structure of your request is different from what the server expects or has empty fields."
                 };
@@ -70,7 +71,7 @@ namespace FurniroomAPI.Controllers
             {
                 return new APIResponseModel
                 {
-                    Date = currentDateTime,
+                    Date = _requestDate,
                     Status = false,
                     Message = "Old name cannot exceed 50 characters in length."
                 };
@@ -79,7 +80,7 @@ namespace FurniroomAPI.Controllers
             {
                 return new APIResponseModel
                 {
-                    Date = currentDateTime,
+                    Date = _requestDate,
                     Status = false,
                     Message = "New name cannot exceed 50 characters in length."
                 };
@@ -89,7 +90,7 @@ namespace FurniroomAPI.Controllers
                 var serviceResponse = await _accountService.ChangeNameAsync(changeName);
                 var gatewayResponse = new APIResponseModel
                 {
-                    Date = currentDateTime,
+                    Date = _requestDate,
                     Status = serviceResponse.Status,
                     Message = serviceResponse.Message,
                     Data = serviceResponse.Data
@@ -105,7 +106,7 @@ namespace FurniroomAPI.Controllers
             {
                 return new APIResponseModel
                 {
-                    Date = currentDateTime,
+                    Date = _requestDate,
                     Status = false,
                     Message = "Structure of your request is different from what the server expects or has empty fields."
                 };
@@ -114,7 +115,7 @@ namespace FurniroomAPI.Controllers
             {
                 return new APIResponseModel
                 {
-                    Date = currentDateTime,
+                    Date = _requestDate,
                     Status = false,
                     Message = "Old email address should be in the format: example@domain.com, where example is the username and domain.com is the domain."
                 };
@@ -123,7 +124,7 @@ namespace FurniroomAPI.Controllers
             {
                 return new APIResponseModel
                 {
-                    Date = currentDateTime,
+                    Date = _requestDate,
                     Status = false,
                     Message = "New email address should be in the format: example@domain.com, where example is the username and domain.com is the domain."
                 };
@@ -132,7 +133,7 @@ namespace FurniroomAPI.Controllers
             {
                 return new APIResponseModel
                 {
-                    Date = currentDateTime,
+                    Date = _requestDate,
                     Status = false,
                     Message = "Old email address cannot exceed 254 characters in length."
                 };
@@ -141,7 +142,7 @@ namespace FurniroomAPI.Controllers
             {
                 return new APIResponseModel
                 {
-                    Date = currentDateTime,
+                    Date = _requestDate,
                     Status = false,
                     Message = "New email address cannot exceed 254 characters in length."
                 };
@@ -151,7 +152,7 @@ namespace FurniroomAPI.Controllers
                 var serviceResponse = await _accountService.ChangeEmailAsync(changeEmail);
                 var gatewayResponse = new APIResponseModel
                 {
-                    Date = currentDateTime,
+                    Date = _requestDate,
                     Status = serviceResponse.Status,
                     Message = serviceResponse.Message,
                     Data = serviceResponse.Data
@@ -167,7 +168,7 @@ namespace FurniroomAPI.Controllers
             {
                 return new APIResponseModel
                 {
-                    Date = currentDateTime,
+                    Date = _requestDate,
                     Status = false,
                     Message = "Some fields of the request are missing or empty."
                 };
@@ -176,7 +177,7 @@ namespace FurniroomAPI.Controllers
             {
                 return new APIResponseModel
                 {
-                    Date = currentDateTime,
+                    Date = _requestDate,
                     Status = false,
                     Message = "Old password hash cannot exceed 128 characters in length."
                 };
@@ -185,7 +186,7 @@ namespace FurniroomAPI.Controllers
             {
                 return new APIResponseModel
                 {
-                    Date = currentDateTime,
+                    Date = _requestDate,
                     Status = false,
                     Message = "New password hash cannot exceed 128 characters in length."
                 };
@@ -195,7 +196,7 @@ namespace FurniroomAPI.Controllers
                 var serviceResponse = await _accountService.ChangePasswordAsync(changePassword);
                 var gatewayResponse = new APIResponseModel
                 {
-                    Date = currentDateTime,
+                    Date = _requestDate,
                     Status = serviceResponse.Status,
                     Message = serviceResponse.Message,
                     Data = serviceResponse.Data
@@ -211,7 +212,7 @@ namespace FurniroomAPI.Controllers
             {
                 return new APIResponseModel
                 {
-                    Date = currentDateTime,
+                    Date = _requestDate,
                     Status = false,
                     Message = "Structure of your request is different from what the server expects or has empty fields."
                 };
@@ -220,7 +221,7 @@ namespace FurniroomAPI.Controllers
             {
                 return new APIResponseModel
                 {
-                    Date = currentDateTime,
+                    Date = _requestDate,
                     Status = false,
                     Message = "Account ID must be a positive number."
                 };
@@ -230,7 +231,7 @@ namespace FurniroomAPI.Controllers
                 var serviceResponse = await _accountService.DeleteAccountAsync((int)accountId);
                 var gatewayResponse = new APIResponseModel
                 {
-                    Date = currentDateTime,
+                    Date = _requestDate,
                     Status = serviceResponse.Status,
                     Message = serviceResponse.Message,
                     Data = serviceResponse.Data
