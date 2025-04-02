@@ -22,11 +22,10 @@ namespace FurniroomAPI
                 requests[request.Key] = request.Value;
             }
 
-            builder.Services.AddSingleton(() => DateTime.UtcNow);
             builder.Services.AddScoped<ICatalogService, CatalogService>(provider => new CatalogService(connectionString, requests, provider.GetRequiredService<ILoggingService>(), provider.GetRequiredService<Func<DateTime>>()));
             builder.Services.AddScoped<IConditionsService, ConditionsService>(provider => new ConditionsService(connectionString, requests, provider.GetRequiredService<ILoggingService>(), provider.GetRequiredService<Func<DateTime>>()));
             builder.Services.AddScoped<IOrdersService, OrdersService>(provider => new OrdersService(connectionString, requests, provider.GetRequiredService<ILoggingService>(), provider.GetRequiredService<Func<DateTime>>()));
-            builder.Services.AddScoped<IAuthorizationService, AuthorizationService>(provider => new AuthorizationService(connectionString, serviceEmail, servicePassword, requests, provider.GetRequiredService<ILoggingService>(), provider.GetRequiredService<Func<DateTime>>()));
+            builder.Services.AddScoped<IAuthorizationService, AuthorizationService>(provider => new AuthorizationService(connectionString, serviceEmail, servicePassword, requests, provider.GetRequiredService<ILoggingService>()));
             builder.Services.AddScoped<IAccountService, AccountService>(provider => new AccountService(connectionString, requests, provider.GetRequiredService<ILoggingService>(), provider.GetRequiredService<Func<DateTime>>()));
             builder.Services.AddScoped<IValidationService, ValidationService>(provider => new ValidationService());
             builder.Services.AddScoped<ILoggingService, LoggingService>(provider => new LoggingService(connectionString, requests));

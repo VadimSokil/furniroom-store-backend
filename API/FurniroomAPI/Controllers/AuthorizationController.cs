@@ -15,591 +15,195 @@ namespace FurniroomAPI.Controllers
     {
         private readonly IAuthorizationService _authorizationService;
         private readonly IValidationService _validationService;
-        private readonly string _requestDate;
-        private readonly DateTime _logDate;
         private readonly ILoggingService _loggingService;
-        private readonly string _requestId;
         private readonly HttpRequest _httpRequest;
 
-        public AuthorizationController(IAuthorizationService authorizationService, IValidationService validationService, Func<DateTime> requestDate, ILoggingService loggingService, IHttpContextAccessor httpContextAccessor)
+        public AuthorizationController(IAuthorizationService authorizationService, IValidationService validationService, ILoggingService loggingService, IHttpContextAccessor httpContextAccessor)
         {
             _authorizationService = authorizationService;
             _validationService = validationService;
-            _logDate = requestDate();
-            _requestDate = requestDate().ToString("dd/MM/yyyy HH:mm:ss") + " UTC";
             _loggingService = loggingService;
-            _requestId = Guid.NewGuid().ToString();
             _httpRequest = httpContextAccessor.HttpContext.Request;
+        }
+
+        private async Task<ActionResult<APIResponseModel>> ProcessRequest<T>(T requestData, Func<T, Task<ServiceResponseModel>> serviceCall, Func<T, string> getQueryParams, Action<T>[] validations)
+        {
+            var requestId = Guid.NewGuid().ToString();
+            var formattedTime = DateTime.UtcNow.ToString("dd/MM/yyyy HH:mm:ss") + " UTC";
+
+            var queryParams = getQueryParams(requestData);
+
+            await LogActionAsync("Request started", queryParams, requestId);
+
+            foreach (var validate in validations)
+            {
+                validate(requestData);
+            }
+
+            if (!ModelState.IsValid)
+            {
+                return await HandleValidationError("Invalid request structure", queryParams, requestId, formattedTime);
+            }
+
+            var serviceResponse = await serviceCall(requestData);
+            var gatewayResponse = new APIResponseModel
+            {
+                Date = formattedTime,
+                Status = serviceResponse.Status,
+                Message = serviceResponse.Message,
+                Data = serviceResponse.Data
+            };
+
+            await LogActionAsync("Request completed", queryParams, requestId);
+            return Ok(gatewayResponse);
+        }
+
+        private async Task LogActionAsync(string status, string queryParams, string requestId)
+        {
+            await _loggingService.AddLogAsync(new LogModel
+            {
+                Date = DateTime.UtcNow,
+                HttpMethod = _httpRequest.Method,
+                Endpoint = _httpRequest.Path,
+                QueryParams = queryParams,
+                Status = status,
+                RequestId = requestId
+            });
+        }
+
+        private async Task<ActionResult<APIResponseModel>> HandleValidationError(
+            string message, string queryParams, string requestId, string formattedTime)
+        {
+            await LogActionAsync(message, queryParams, requestId);
+            return new APIResponseModel
+            {
+                Date = formattedTime,
+                Status = false,
+                Message = message
+            };
         }
 
         [HttpPost("sign-up")]
         public async Task<ActionResult<APIResponseModel>> SignUp([FromBody] SignUpModel signUp)
         {
-            var log = new LogModel
-            {
-                Date = _logDate,
-                HttpMethod = _httpRequest.Method,
-                Endpoint = _httpRequest.Path,
-                QueryParams = _httpRequest.QueryString.Value ?? string.Empty,
-                Status = "Received a new request",
-                RequestId = _requestId
-            };
-
-            await _loggingService.AddLogAsync(log);
-
-            if (!ModelState.IsValid)
-            {
-                var error = new LogModel
-                {
-                    Date = _logDate,
-                    HttpMethod = _httpRequest.Method,
-                    Endpoint = _httpRequest.Path,
-                    QueryParams = _httpRequest.QueryString.Value ?? string.Empty,
-                    Status = "Structure of your request is different from what the server expects or has empty fields.",
-                    RequestId = _requestId
-                };
-
-                await _loggingService.AddLogAsync(error);
-
-                return new APIResponseModel
-                {
-                    Date = _requestDate,
-                    Status = false,
-                    Message = "Structure of your request is different from what the server expects or has empty fields."
-                };
-            }
-            else if (!_validationService.IsValidDigit(signUp.AccountId))
-            {
-                var error = new LogModel
-                {
-                    Date = _logDate,
-                    HttpMethod = _httpRequest.Method,
-                    Endpoint = _httpRequest.Path,
-                    QueryParams = _httpRequest.QueryString.Value ?? string.Empty,
-                    Status = "Account ID must be a positive number.",
-                    RequestId = _requestId
-                };
-
-                await _loggingService.AddLogAsync(error);
-
-                return new APIResponseModel
-                {
-                    Date = _requestDate,
-                    Status = false,
-                    Message = "Account ID must be a positive number."
-                };
-            }
-            else if (!_validationService.IsValidLength(signUp.AccountName, 50))
-            {
-                var error = new LogModel
-                {
-                    Date = _logDate,
-                    HttpMethod = _httpRequest.Method,
-                    Endpoint = _httpRequest.Path,
-                    QueryParams = _httpRequest.QueryString.Value ?? string.Empty,
-                    Status = "Account name cannot exceed 50 characters in length.",
-                    RequestId = _requestId
-                };
-
-                await _loggingService.AddLogAsync(error);
-
-                return new APIResponseModel
-                {
-                    Date = _requestDate,
-                    Status = false,
-                    Message = "Account name cannot exceed 50 characters in length."
-                };
-            }
-            else if (!_validationService.IsValidEmail(signUp.Email))
-            {
-                var error = new LogModel
-                {
-                    Date = _logDate,
-                    HttpMethod = _httpRequest.Method,
-                    Endpoint = _httpRequest.Path,
-                    QueryParams = _httpRequest.QueryString.Value ?? string.Empty,
-                    Status = "Email address should be in the format: example@domain.com, where example is the username and domain.com is the domain.",
-                    RequestId = _requestId
-                };
-
-                await _loggingService.AddLogAsync(error);
-
-                return new APIResponseModel
-                {
-                    Date = _requestDate,
-                    Status = false,
-                    Message = "Email address should be in the format: example@domain.com, where example is the username and domain.com is the domain."
-                };
-            }
-            else if (!_validationService.IsValidLength(signUp.Email, 254))
-            {
-                var error = new LogModel
-                {
-                    Date = _logDate,
-                    HttpMethod = _httpRequest.Method,
-                    Endpoint = _httpRequest.Path,
-                    QueryParams = _httpRequest.QueryString.Value ?? string.Empty,
-                    Status = "Email address cannot exceed 254 characters in length.",
-                    RequestId = _requestId
-                };
-
-                await _loggingService.AddLogAsync(error);
-
-                return new APIResponseModel
-                {
-                    Date = _requestDate,
-                    Status = false,
-                    Message = "Email address cannot exceed 254 characters in length."
-                };
-            }
-            else if (!_validationService.IsValidLength(signUp.PasswordHash, 128))
-            {
-                var error = new LogModel
-                {
-                    Date = _logDate,
-                    HttpMethod = _httpRequest.Method,
-                    Endpoint = _httpRequest.Path,
-                    QueryParams = _httpRequest.QueryString.Value ?? string.Empty,
-                    Status = "Password hash cannot exceed 128 characters in length.",
-                    RequestId = _requestId
-                };
-
-                await _loggingService.AddLogAsync(error);
-
-                return new APIResponseModel
-                {
-                    Date = _requestDate,
-                    Status = false,
-                    Message = "Password hash cannot exceed 128 characters in length."
-                };
-            }
-            else
-            {
-                var serviceResponse = await _authorizationService.SignUpAsync(
-                    signUp,
+            return await ProcessRequest(
+                signUp,
+                data => _authorizationService.SignUpAsync(
+                    data,
                     _httpRequest.Method,
                     _httpRequest.Path,
-                    _httpRequest.QueryString.Value ?? string.Empty,
-                    _requestId);
-                var gatewayResponse = new APIResponseModel
+                    JsonSerializer.Serialize(data),
+                    Guid.NewGuid().ToString()),
+                data => JsonSerializer.Serialize(data),
+                new Action<SignUpModel>[]
                 {
-                    Date = _requestDate,
-                    Status = serviceResponse.Status,
-                    Message = serviceResponse.Message,
-                    Data = serviceResponse.Data
-                };
-                return Ok(gatewayResponse);
-            }
+                    data => ValidateDigit((int)data.AccountId, "Account ID must be a positive number."),
+                    data => ValidateLength(data.AccountName, 50, "Account name cannot exceed 50 characters."),
+                    data => ValidateEmail(data.Email),
+                    data => ValidateLength(data.Email, 254, "Email cannot exceed 254 characters."),
+                    data => ValidateLength(data.PasswordHash, 128, "Password hash cannot exceed 128 characters.")
+                });
         }
 
         [HttpPost("sign-in")]
         public async Task<ActionResult<APIResponseModel>> SignIn([FromBody] SignInModel signIn)
         {
-            var log = new LogModel
-            {
-                Date = _logDate,
-                HttpMethod = _httpRequest.Method,
-                Endpoint = _httpRequest.Path,
-                QueryParams = JsonSerializer.Serialize(signIn),
-                Status = "Received a new request",
-                RequestId = _requestId
-            };
-
-            await _loggingService.AddLogAsync(log);
-
-            if (!ModelState.IsValid)
-            {
-                var error = new LogModel
-                {
-                    Date = _logDate,
-                    HttpMethod = _httpRequest.Method,
-                    Endpoint = _httpRequest.Path,
-                    QueryParams = JsonSerializer.Serialize(signIn),
-                    Status = "Structure of your request is different from what the server expects or has empty fields.",
-                    RequestId = _requestId
-                };
-
-                await _loggingService.AddLogAsync(error);
-
-                return new APIResponseModel
-                {
-                    Date = _requestDate,
-                    Status = false,
-                    Message = "Structure of your request is different from what the server expects or has empty fields."
-                };
-            }
-            else if (!_validationService.IsValidEmail(signIn.Email))
-            {
-                var error = new LogModel
-                {
-                    Date = _logDate,
-                    HttpMethod = _httpRequest.Method,
-                    Endpoint = _httpRequest.Path,
-                    QueryParams = JsonSerializer.Serialize(signIn),
-                    Status = "Email address should be in the format: example@domain.com, where example is the username and domain.com is the domain.",
-                    RequestId = _requestId
-                };
-
-                await _loggingService.AddLogAsync(error);
-
-                return new APIResponseModel
-                {
-                    Date = _requestDate,
-                    Status = false,
-                    Message = "Email address should be in the format: example@domain.com, where example is the username and domain.com is the domain."
-                };
-            }
-            else if (!_validationService.IsValidLength(signIn.Email, 254))
-            {
-                var error = new LogModel
-                {
-                    Date = _logDate,
-                    HttpMethod = _httpRequest.Method,
-                    Endpoint = _httpRequest.Path,
-                    QueryParams = JsonSerializer.Serialize(signIn),
-                    Status = "Email address cannot exceed 254 characters in length.",
-                    RequestId = _requestId
-                };
-
-                await _loggingService.AddLogAsync(error);
-
-                return new APIResponseModel
-                {
-                    Date = _requestDate,
-                    Status = false,
-                    Message = "Email address cannot exceed 254 characters in length."
-                };
-            }
-            else if (!_validationService.IsValidLength(signIn.PasswordHash, 128))
-            {
-                var error = new LogModel
-                {
-                    Date = _logDate,
-                    HttpMethod = _httpRequest.Method,
-                    Endpoint = _httpRequest.Path,
-                    QueryParams = JsonSerializer.Serialize(signIn),
-                    Status = "Password hash cannot exceed 128 characters in length.",
-                    RequestId = _requestId
-                };
-
-                await _loggingService.AddLogAsync(error);
-
-                return new APIResponseModel
-                {
-                    Date = _requestDate,
-                    Status = false,
-                    Message = "Password hash cannot exceed 128 characters in length."
-                };
-            }
-            else
-            {
-                await Task.Delay(2000);
-
-                var serviceResponse = await _authorizationService.SignInAsync(
-                    signIn,
+            return await ProcessRequest(
+                signIn,
+                data => _authorizationService.SignInAsync(
+                    data,
                     _httpRequest.Method,
                     _httpRequest.Path,
-                    JsonSerializer.Serialize(signIn),
-                    _requestId);
-                var gatewayResponse = new APIResponseModel
+                    JsonSerializer.Serialize(data),
+                    Guid.NewGuid().ToString()),
+                data => JsonSerializer.Serialize(data),
+                new Action<SignInModel>[]
                 {
-                    Date = _requestDate,
-                    Status = serviceResponse.Status,
-                    Message = serviceResponse.Message,
-                    Data = serviceResponse.Data
-                };
-                return Ok(gatewayResponse);
-            }
+                    data => ValidateEmail(data.Email),
+                    data => ValidateLength(data.Email, 254, "Email cannot exceed 254 characters."),
+                    data => ValidateLength(data.PasswordHash, 128, "Password hash cannot exceed 128 characters.")
+                });
         }
 
         [HttpPost("reset-password")]
-        public async Task<ActionResult<APIResponseModel>> ResetPassword([FromBody][Required] string? email)
+        public async Task<ActionResult<APIResponseModel>> ResetPassword([FromBody][Required] string email)
         {
-            var log = new LogModel
-            {
-                Date = _logDate,
-                HttpMethod = _httpRequest.Method,
-                Endpoint = _httpRequest.Path,
-                QueryParams = _httpRequest.QueryString.Value ?? string.Empty,
-                Status = "Received a new request",
-                RequestId = _requestId
-            };
-
-            await _loggingService.AddLogAsync(log);
-
-            if (!ModelState.IsValid)
-            {
-                var error = new LogModel
-                {
-                    Date = _logDate,
-                    HttpMethod = _httpRequest.Method,
-                    Endpoint = _httpRequest.Path,
-                    QueryParams = _httpRequest.QueryString.Value ?? string.Empty,
-                    Status = "Structure of your request is different from what the server expects or has empty fields.",
-                    RequestId = _requestId
-                };
-
-                await _loggingService.AddLogAsync(error);
-
-                return new APIResponseModel
-                {
-                    Date = _requestDate,
-                    Status = false,
-                    Message = "Structure of your request is different from what the server expects or has empty fields."
-                };
-            }
-            else if (!_validationService.IsValidEmail(email))
-            {
-                var error = new LogModel
-                {
-                    Date = _logDate,
-                    HttpMethod = _httpRequest.Method,
-                    Endpoint = _httpRequest.Path,
-                    QueryParams = _httpRequest.QueryString.Value ?? string.Empty,
-                    Status = "Email address should be in the format: example@domain.com, where example is the username and domain.com is the domain.",
-                    RequestId = _requestId
-                };
-
-                await _loggingService.AddLogAsync(error);
-
-                return new APIResponseModel
-                {
-                    Date = _requestDate,
-                    Status = false,
-                    Message = "Email address should be in the format: example@domain.com, where example is the username and domain.com is the domain."
-                };
-            }
-            else if (!_validationService.IsValidLength(email, 254))
-            {
-                var error = new LogModel
-                {
-                    Date = _logDate,
-                    HttpMethod = _httpRequest.Method,
-                    Endpoint = _httpRequest.Path,
-                    QueryParams = _httpRequest.QueryString.Value ?? string.Empty,
-                    Status = "Email address cannot exceed 254 characters in length.",
-                    RequestId = _requestId
-                };
-
-                await _loggingService.AddLogAsync(error);
-
-                return new APIResponseModel
-                {
-                    Date = _requestDate,
-                    Status = false,
-                    Message = "Email address cannot exceed 254 characters in length."
-                };
-            }
-            else
-            {
-                var serviceResponse = await _authorizationService.ResetPasswordAsync(
-                    email,
+            return await ProcessRequest(
+                email,
+                data => _authorizationService.ResetPasswordAsync(
+                    data,
                     _httpRequest.Method,
                     _httpRequest.Path,
-                    _httpRequest.QueryString.Value ?? string.Empty,
-                    _requestId);
-                var gatewayResponse = new APIResponseModel
+                    string.Empty,
+                    Guid.NewGuid().ToString()),
+                data => string.Empty,
+                new Action<string>[]
                 {
-                    Date = _requestDate,
-                    Status = serviceResponse.Status,
-                    Message = serviceResponse.Message,
-                    Data = serviceResponse.Data
-                };
-                return Ok(gatewayResponse);
-            }
+                    data => ValidateEmail(data),
+                    data => ValidateLength(data, 254, "Email cannot exceed 254 characters.")
+                });
         }
 
         [HttpGet("check-email")]
-        public async Task<ActionResult<APIResponseModel>> CheckEmail([FromQuery][Required] string? email)
+        public async Task<ActionResult<APIResponseModel>> CheckEmail([FromQuery][Required] string email)
         {
-            var log = new LogModel
-            {
-                Date = _logDate,
-                HttpMethod = _httpRequest.Method,
-                Endpoint = _httpRequest.Path,
-                QueryParams = $"email={WebUtility.UrlEncode(email)}",
-                Status = "Received a new request",
-                RequestId = _requestId
-            };
-
-            await _loggingService.AddLogAsync(log);
-
-            if (!ModelState.IsValid)
-            {
-                var error = new LogModel
-                {
-                    Date = _logDate,
-                    HttpMethod = _httpRequest.Method,
-                    Endpoint = _httpRequest.Path,
-                    QueryParams = $"email={WebUtility.UrlEncode(email)}",
-                    Status = "Structure of your request is different from what the server expects or has empty fields.",
-                    RequestId = _requestId
-                };
-
-                await _loggingService.AddLogAsync(error);
-
-                return new APIResponseModel
-                {
-                    Date = _requestDate,
-                    Status = false,
-                    Message = "Structure of your request is different from what the server expects or has empty fields."
-                };
-            }
-            else if (!_validationService.IsValidEmail(email))
-            {
-                var error = new LogModel
-                {
-                    Date = _logDate,
-                    HttpMethod = _httpRequest.Method,
-                    Endpoint = _httpRequest.Path,
-                    QueryParams = $"email={WebUtility.UrlEncode(email)}",
-                    Status = "Email address should be in the format: example@domain.com, where example is the username and domain.com is the domain.",
-                    RequestId = _requestId
-                };
-
-                await _loggingService.AddLogAsync(error);
-
-                return new APIResponseModel
-                {
-                    Date = _requestDate,
-                    Status = false,
-                    Message = "Email address should be in the format: example@domain.com, where example is the username and domain.com is the domain."
-                };
-            }
-            else if (!_validationService.IsValidLength(email, 254))
-            {
-                var error = new LogModel
-                {
-                    Date = _logDate,
-                    HttpMethod = _httpRequest.Method,
-                    Endpoint = _httpRequest.Path,
-                    QueryParams = $"email={WebUtility.UrlEncode(email)}",
-                    Status = "Email address cannot exceed 254 characters in length.",
-                    RequestId = _requestId
-                };
-
-                await _loggingService.AddLogAsync(error);
-
-                return new APIResponseModel
-                {
-                    Date = _requestDate,
-                    Status = false,
-                    Message = "Email address cannot exceed 254 characters in length."
-                };
-            }
-            else
-            {
-                var serviceResponse = await _authorizationService.CheckEmailAsync(
-                    email,
+            return await ProcessRequest(
+                email,
+                data => _authorizationService.CheckEmailAsync(
+                    data,
                     _httpRequest.Method,
                     _httpRequest.Path,
-                   $"email={WebUtility.UrlEncode(email)}",
-                    _requestId);
-                var gatewayResponse = new APIResponseModel
+                    $"email={WebUtility.UrlEncode(data)}",
+                    Guid.NewGuid().ToString()),
+                data => $"email={WebUtility.UrlEncode(data)}",
+                new Action<string>[]
                 {
-                    Date = _requestDate,
-                    Status = serviceResponse.Status,
-                    Message = serviceResponse.Message,
-                    Data = serviceResponse.Data
-                };
-                return Ok(gatewayResponse);
+                    data => ValidateEmail(data),
+                    data => ValidateLength(data, 254, "Email cannot exceed 254 characters.")
+                });
+        }
+
+        [HttpGet("generate-verification-code")]
+        public async Task<ActionResult<APIResponseModel>> GenerateCode([FromQuery][Required] string email)
+        {
+            return await ProcessRequest(
+                email,
+                data => _authorizationService.GenerateCodeAsync(
+                    data,
+                    _httpRequest.Method,
+                    _httpRequest.Path,
+                    string.Empty,
+                    Guid.NewGuid().ToString()),
+                data => string.Empty,
+                new Action<string>[]
+                {
+                    data => ValidateEmail(data),
+                    data => ValidateLength(data, 254, "Email cannot exceed 254 characters.")
+                });
+        }
+
+        private void ValidateDigit(int value, string errorMessage)
+        {
+            if (!_validationService.IsValidDigit(value))
+            {
+                ModelState.AddModelError(string.Empty, errorMessage);
             }
         }
 
-        [HttpGet("generate-vertification-code")]
-        public async Task<ActionResult<APIResponseModel>> GenerateCode([FromQuery][Required] string? email)
+        private void ValidateLength(string value, int maxLength, string errorMessage)
         {
-            var log = new LogModel
+            if (!_validationService.IsValidLength(value, maxLength))
             {
-                Date = _logDate,
-                HttpMethod = _httpRequest.Method,
-                Endpoint = _httpRequest.Path,
-                QueryParams = _httpRequest.QueryString.Value ?? string.Empty,
-                Status = "Received a new request",
-                RequestId = _requestId
-            };
-
-            await _loggingService.AddLogAsync(log);
-
-            if (!ModelState.IsValid)
-            {
-                var error = new LogModel
-                {
-                    Date = _logDate,
-                    HttpMethod = _httpRequest.Method,
-                    Endpoint = _httpRequest.Path,
-                    QueryParams = _httpRequest.QueryString.Value ?? string.Empty,
-                    Status = "Structure of your request is different from what the server expects or has empty fields.",
-                    RequestId = _requestId
-                };
-
-                await _loggingService.AddLogAsync(error);
-
-                return new APIResponseModel
-                {
-                    Date = _requestDate,
-                    Status = false,
-                    Message = "Structure of your request is different from what the server expects or has empty fields."
-                };
+                ModelState.AddModelError(string.Empty, errorMessage);
             }
-            else if (!_validationService.IsValidEmail(email))
+        }
+
+        private void ValidateEmail(string email)
+        {
+            if (!_validationService.IsValidEmail(email))
             {
-                var error = new LogModel
-                {
-                    Date = _logDate,
-                    HttpMethod = _httpRequest.Method,
-                    Endpoint = _httpRequest.Path,
-                    QueryParams = _httpRequest.QueryString.Value ?? string.Empty,
-                    Status = "Email address should be in the format: example@domain.com, where example is the username and domain.com is the domain.",
-                    RequestId = _requestId
-                };
-
-                await _loggingService.AddLogAsync(error);
-
-                return new APIResponseModel
-                {
-                    Date = _requestDate,
-                    Status = false,
-                    Message = "Email address should be in the format: example@domain.com, where example is the username and domain.com is the domain."
-                };
-            }
-            else if (!_validationService.IsValidLength(email, 254))
-            {
-                var error = new LogModel
-                {
-                    Date = _logDate,
-                    HttpMethod = _httpRequest.Method,
-                    Endpoint = _httpRequest.Path,
-                    QueryParams = _httpRequest.QueryString.Value ?? string.Empty,
-                    Status = "Email address cannot exceed 254 characters in length.",
-                    RequestId = _requestId
-                };
-
-                await _loggingService.AddLogAsync(error);
-
-                return new APIResponseModel
-                {
-                    Date = _requestDate,
-                    Status = false,
-                    Message = "Email address cannot exceed 254 characters in length."
-                };
-            }
-            else
-            {
-                var serviceResponse = await _authorizationService.GenerateCodeAsync(
-                    email,
-                    _httpRequest.Method,
-                    _httpRequest.Path,
-                    _httpRequest.QueryString.Value ?? string.Empty,
-                    _requestId);
-                var gatewayResponse = new APIResponseModel
-                {
-                    Date = _requestDate,
-                    Status = serviceResponse.Status,
-                    Message = serviceResponse.Message,
-                    Data = serviceResponse.Data
-                };
-                return Ok(gatewayResponse);
+                ModelState.AddModelError(string.Empty,
+                    "Email should be in format: example@domain.com");
             }
         }
     }
