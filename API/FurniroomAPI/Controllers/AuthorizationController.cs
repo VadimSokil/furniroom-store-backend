@@ -18,7 +18,10 @@ namespace FurniroomAPI.Controllers
         private readonly ILoggingService _loggingService;
         private readonly HttpRequest _httpRequest;
 
-        public AuthorizationController(IAuthorizationService authorizationService, IValidationService validationService, ILoggingService loggingService, IHttpContextAccessor httpContextAccessor)
+        public AuthorizationController(IAuthorizationService authorizationService,
+                                    IValidationService validationService,
+                                    ILoggingService loggingService,
+                                    IHttpContextAccessor httpContextAccessor)
         {
             _authorizationService = authorizationService;
             _validationService = validationService;
@@ -26,11 +29,14 @@ namespace FurniroomAPI.Controllers
             _httpRequest = httpContextAccessor.HttpContext.Request;
         }
 
-        private async Task<ActionResult<APIResponseModel>> ProcessRequest<T>(T requestData, Func<T, Task<ServiceResponseModel>> serviceCall, Func<T, string> getQueryParams, Action<T>[] validations)
+        private async Task<ActionResult<APIResponseModel>> ProcessRequest<T>(
+            T requestData,
+            Func<T, string, Task<ServiceResponseModel>> serviceCall,
+            Func<T, string> getQueryParams,
+            Action<T>[] validations)
         {
             var requestId = Guid.NewGuid().ToString();
             var formattedTime = DateTime.UtcNow.ToString("dd/MM/yyyy HH:mm:ss") + " UTC";
-
             var queryParams = getQueryParams(requestData);
 
             await LogActionAsync("Request started", queryParams, requestId);
@@ -45,7 +51,7 @@ namespace FurniroomAPI.Controllers
                 return await HandleValidationError("Invalid request structure", queryParams, requestId, formattedTime);
             }
 
-            var serviceResponse = await serviceCall(requestData);
+            var serviceResponse = await serviceCall(requestData, requestId);
             var gatewayResponse = new APIResponseModel
             {
                 Date = formattedTime,
@@ -72,7 +78,10 @@ namespace FurniroomAPI.Controllers
         }
 
         private async Task<ActionResult<APIResponseModel>> HandleValidationError(
-            string message, string queryParams, string requestId, string formattedTime)
+            string message,
+            string queryParams,
+            string requestId,
+            string formattedTime)
         {
             await LogActionAsync(message, queryParams, requestId);
             return new APIResponseModel
@@ -88,12 +97,12 @@ namespace FurniroomAPI.Controllers
         {
             return await ProcessRequest(
                 signUp,
-                data => _authorizationService.SignUpAsync(
+                (data, requestId) => _authorizationService.SignUpAsync(
                     data,
                     _httpRequest.Method,
                     _httpRequest.Path,
                     JsonSerializer.Serialize(data),
-                    Guid.NewGuid().ToString()),
+                    requestId),
                 data => JsonSerializer.Serialize(data),
                 new Action<SignUpModel>[]
                 {
@@ -110,12 +119,12 @@ namespace FurniroomAPI.Controllers
         {
             return await ProcessRequest(
                 signIn,
-                data => _authorizationService.SignInAsync(
+                (data, requestId) => _authorizationService.SignInAsync(
                     data,
                     _httpRequest.Method,
                     _httpRequest.Path,
                     JsonSerializer.Serialize(data),
-                    Guid.NewGuid().ToString()),
+                    requestId),
                 data => JsonSerializer.Serialize(data),
                 new Action<SignInModel>[]
                 {
@@ -130,12 +139,12 @@ namespace FurniroomAPI.Controllers
         {
             return await ProcessRequest(
                 email,
-                data => _authorizationService.ResetPasswordAsync(
+                (data, requestId) => _authorizationService.ResetPasswordAsync(
                     data,
                     _httpRequest.Method,
                     _httpRequest.Path,
                     string.Empty,
-                    Guid.NewGuid().ToString()),
+                    requestId),
                 data => string.Empty,
                 new Action<string>[]
                 {
@@ -149,12 +158,12 @@ namespace FurniroomAPI.Controllers
         {
             return await ProcessRequest(
                 email,
-                data => _authorizationService.CheckEmailAsync(
+                (data, requestId) => _authorizationService.CheckEmailAsync(
                     data,
                     _httpRequest.Method,
                     _httpRequest.Path,
                     $"email={WebUtility.UrlEncode(data)}",
-                    Guid.NewGuid().ToString()),
+                    requestId),
                 data => $"email={WebUtility.UrlEncode(data)}",
                 new Action<string>[]
                 {
@@ -168,12 +177,12 @@ namespace FurniroomAPI.Controllers
         {
             return await ProcessRequest(
                 email,
-                data => _authorizationService.GenerateCodeAsync(
+                (data, requestId) => _authorizationService.GenerateCodeAsync(
                     data,
                     _httpRequest.Method,
                     _httpRequest.Path,
                     string.Empty,
-                    Guid.NewGuid().ToString()),
+                    requestId),
                 data => string.Empty,
                 new Action<string>[]
                 {
