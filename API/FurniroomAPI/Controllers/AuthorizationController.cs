@@ -4,6 +4,8 @@ using FurniroomAPI.Models.Log;
 using FurniroomAPI.Models.Response;
 using Microsoft.AspNetCore.Mvc;
 using System.ComponentModel.DataAnnotations;
+using System.Net;
+using System.Text.Json;
 
 namespace FurniroomAPI.Controllers
 {
@@ -198,7 +200,7 @@ namespace FurniroomAPI.Controllers
                 Date = _logDate,
                 HttpMethod = _httpRequest.Method,
                 Endpoint = _httpRequest.Path,
-                QueryParams = _httpRequest.QueryString.Value ?? string.Empty,
+                QueryParams = JsonSerializer.Serialize(signIn),
                 Status = "Received a new request",
                 RequestId = _requestId
             };
@@ -212,7 +214,7 @@ namespace FurniroomAPI.Controllers
                     Date = _logDate,
                     HttpMethod = _httpRequest.Method,
                     Endpoint = _httpRequest.Path,
-                    QueryParams = _httpRequest.QueryString.Value ?? string.Empty,
+                    QueryParams = JsonSerializer.Serialize(signIn),
                     Status = "Structure of your request is different from what the server expects or has empty fields.",
                     RequestId = _requestId
                 };
@@ -233,7 +235,7 @@ namespace FurniroomAPI.Controllers
                     Date = _logDate,
                     HttpMethod = _httpRequest.Method,
                     Endpoint = _httpRequest.Path,
-                    QueryParams = _httpRequest.QueryString.Value ?? string.Empty,
+                    QueryParams = JsonSerializer.Serialize(signIn),
                     Status = "Email address should be in the format: example@domain.com, where example is the username and domain.com is the domain.",
                     RequestId = _requestId
                 };
@@ -254,7 +256,7 @@ namespace FurniroomAPI.Controllers
                     Date = _logDate,
                     HttpMethod = _httpRequest.Method,
                     Endpoint = _httpRequest.Path,
-                    QueryParams = _httpRequest.QueryString.Value ?? string.Empty,
+                    QueryParams = JsonSerializer.Serialize(signIn),
                     Status = "Email address cannot exceed 254 characters in length.",
                     RequestId = _requestId
                 };
@@ -275,7 +277,7 @@ namespace FurniroomAPI.Controllers
                     Date = _logDate,
                     HttpMethod = _httpRequest.Method,
                     Endpoint = _httpRequest.Path,
-                    QueryParams = _httpRequest.QueryString.Value ?? string.Empty,
+                    QueryParams = JsonSerializer.Serialize(signIn),
                     Status = "Password hash cannot exceed 128 characters in length.",
                     RequestId = _requestId
                 };
@@ -295,7 +297,7 @@ namespace FurniroomAPI.Controllers
                     signIn,
                     _httpRequest.Method,
                     _httpRequest.Path,
-                    _httpRequest.QueryString.Value ?? string.Empty,
+                    JsonSerializer.Serialize(signIn),
                     _requestId);
                 var gatewayResponse = new APIResponseModel
                 {
@@ -413,7 +415,7 @@ namespace FurniroomAPI.Controllers
                 Date = _logDate,
                 HttpMethod = _httpRequest.Method,
                 Endpoint = _httpRequest.Path,
-                QueryParams = _httpRequest.QueryString.Value ?? string.Empty,
+                QueryParams = $"email={WebUtility.UrlEncode(email)}",
                 Status = "Received a new request",
                 RequestId = _requestId
             };
@@ -427,7 +429,7 @@ namespace FurniroomAPI.Controllers
                     Date = _logDate,
                     HttpMethod = _httpRequest.Method,
                     Endpoint = _httpRequest.Path,
-                    QueryParams = _httpRequest.QueryString.Value ?? string.Empty,
+                    QueryParams = $"email={WebUtility.UrlEncode(email)}",
                     Status = "Structure of your request is different from what the server expects or has empty fields.",
                     RequestId = _requestId
                 };
@@ -448,7 +450,7 @@ namespace FurniroomAPI.Controllers
                     Date = _logDate,
                     HttpMethod = _httpRequest.Method,
                     Endpoint = _httpRequest.Path,
-                    QueryParams = _httpRequest.QueryString.Value ?? string.Empty,
+                    QueryParams = $"email={WebUtility.UrlEncode(email)}",
                     Status = "Email address should be in the format: example@domain.com, where example is the username and domain.com is the domain.",
                     RequestId = _requestId
                 };
@@ -469,7 +471,7 @@ namespace FurniroomAPI.Controllers
                     Date = _logDate,
                     HttpMethod = _httpRequest.Method,
                     Endpoint = _httpRequest.Path,
-                    QueryParams = _httpRequest.QueryString.Value ?? string.Empty,
+                    QueryParams = $"email={WebUtility.UrlEncode(email)}",
                     Status = "Email address cannot exceed 254 characters in length.",
                     RequestId = _requestId
                 };
@@ -489,7 +491,7 @@ namespace FurniroomAPI.Controllers
                     email,
                     _httpRequest.Method,
                     _httpRequest.Path,
-                    _httpRequest.QueryString.Value ?? string.Empty,
+                   $"email={WebUtility.UrlEncode(email)}",
                     _requestId);
                 var gatewayResponse = new APIResponseModel
                 {
