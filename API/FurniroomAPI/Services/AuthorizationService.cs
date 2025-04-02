@@ -4,8 +4,7 @@ using FurniroomAPI.Models.Response;
 using MySql.Data.MySqlClient;
 using System.Net.Mail;
 using System.Net;
-using System.Security.Cryptography;
-using System.Text;
+using FurniroomAPI.Models.Log;
 
 namespace FurniroomAPI.Services
 {
@@ -17,19 +16,31 @@ namespace FurniroomAPI.Services
         private readonly Dictionary<string, string> _requests;
         private const string SmtpHost = "smtp.gmail.com";
         private const int SmtpPort = 587;
+        private readonly ILoggingService _loggingService;
+        private readonly DateTime _logDate;
 
-        public AuthorizationService(string connectionString, string serviceEmail, string servicePassword, Dictionary<string, string> requests)
+        public AuthorizationService(
+            string connectionString,
+            string serviceEmail,
+            string servicePassword,
+            Dictionary<string, string> requests,
+            ILoggingService loggingService,
+            Func<DateTime> logDate)
         {
             _connectionString = connectionString;
             _serviceEmail = serviceEmail;
             _servicePassword = servicePassword;
             _requests = requests;
+            _loggingService = loggingService;
+            _logDate = logDate();
         }
 
-        public async Task<ServiceResponseModel> CheckEmailAsync(string email)
+        public async Task<ServiceResponseModel> CheckEmailAsync(string email, string httpMethod, string endpoint, string queryParams, string requestId)
         {
             try
             {
+                await LogActionAsync("Check email started", httpMethod, endpoint, queryParams, requestId);
+
                 using (var connection = new MySqlConnection(_connectionString))
                 {
                     await connection.OpenAsync();
@@ -39,25 +50,22 @@ namespace FurniroomAPI.Services
                         command.Parameters.AddWithValue("@Email", email);
                         var result = Convert.ToInt32(await command.ExecuteScalarAsync());
 
-                        if (result > 0)
+                        var response = new ServiceResponseModel
                         {
-                            return new ServiceResponseModel
-                            {
-                                Status = true,
-                                Message = "This email address is already in use."
-                            };
-                        }
+                            Status = true,
+                            Message = result > 0
+                                ? "This email address is already in use."
+                                : "This email address is available."
+                        };
+
+                        await LogActionAsync("Check email completed", httpMethod, endpoint, queryParams, requestId);
+                        return response;
                     }
                 }
-
-                return new ServiceResponseModel
-                {
-                    Status = true,
-                    Message = "This email address is available."
-                };
             }
             catch (MySqlException ex)
             {
+                await LogErrorAsync(ex, httpMethod, endpoint, queryParams, requestId);
                 return new ServiceResponseModel
                 {
                     Status = false,
@@ -66,6 +74,7 @@ namespace FurniroomAPI.Services
             }
             catch (Exception ex)
             {
+                await LogErrorAsync(ex, httpMethod, endpoint, queryParams, requestId);
                 return new ServiceResponseModel
                 {
                     Status = false,
@@ -74,15 +83,18 @@ namespace FurniroomAPI.Services
             }
         }
 
-
-        public async Task<ServiceResponseModel> GenerateCodeAsync(string email)
+        public async Task<ServiceResponseModel> GenerateCodeAsync(string email, string httpMethod, string endpoint, string queryParams, string requestId)
         {
             try
             {
-                int verificationCode = Random.Shared.Next(1000, 9999);
+                await LogActionAsync("Generate code started", httpMethod, endpoint, queryParams, requestId);
 
+                int verificationCode = Random.Shared.Next(1000, 9999);
                 string messageBody = $"Hi, your verification code: {verificationCode}";
+
                 await SendEmailAsync(email, messageBody, "Verification code");
+
+                await LogActionAsync("Verification code sent", httpMethod, endpoint, queryParams, requestId);
 
                 return new ServiceResponseModel
                 {
@@ -91,29 +103,23 @@ namespace FurniroomAPI.Services
                     Data = verificationCode
                 };
             }
-            catch (MySqlException ex)
-            {
-                return new ServiceResponseModel
-                {
-                    Status = false,
-                    Message = $"A database error occurred: {ex.Message}"
-                };
-            }
             catch (Exception ex)
             {
+                await LogErrorAsync(ex, httpMethod, endpoint, queryParams, requestId);
                 return new ServiceResponseModel
                 {
                     Status = false,
-                    Message = $"An unexpected error occurred: {ex.Message}"
+                    Message = $"Error generating code: {ex.Message}"
                 };
             }
-
         }
 
-        public async Task<ServiceResponseModel> ResetPasswordAsync(string email)
+        public async Task<ServiceResponseModel> ResetPasswordAsync(string email, string httpMethod, string endpoint, string queryParams, string requestId)
         {
             try
             {
+                await LogActionAsync("Reset password started", httpMethod, endpoint, queryParams, requestId);
+
                 using (var connection = new MySqlConnection(_connectionString))
                 {
                     await connection.OpenAsync();
@@ -125,6 +131,7 @@ namespace FurniroomAPI.Services
 
                         if (!emailExists)
                         {
+                            await LogActionAsync("Email not found", httpMethod, endpoint, queryParams, requestId);
                             return new ServiceResponseModel
                             {
                                 Status = false,
@@ -133,53 +140,48 @@ namespace FurniroomAPI.Services
                         }
                     }
 
+                    
                     const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
                     string newPassword = new string(Enumerable.Repeat(chars, 8)
                         .Select(s => s[Random.Shared.Next(s.Length)]).ToArray());
 
-                    string hashedPassword = HashPasswordWithMD5(newPassword);
-
                     using (var updateCommand = new MySqlCommand(_requests["ResetPassword"], connection))
                     {
                         updateCommand.Parameters.AddWithValue("@Email", email);
-                        updateCommand.Parameters.AddWithValue("@PasswordHash", hashedPassword);
+                        updateCommand.Parameters.AddWithValue("@PasswordHash", newPassword);
 
                         await updateCommand.ExecuteNonQueryAsync();
                     }
 
                     await SendEmailAsync(email, $"Hi, your new password: {newPassword}", "Reset Password");
 
+                    await LogActionAsync("Password reset completed", httpMethod, endpoint, queryParams, requestId);
+
                     return new ServiceResponseModel
                     {
                         Status = true,
-                        Message = "Password successfully reseted.",
+                        Message = "Password successfully reset.",
                         Data = newPassword
                     };
                 }
-
-            }
-            catch (MySqlException ex)
-            {
-                return new ServiceResponseModel
-                {
-                    Status = false,
-                    Message = $"Database error: {ex.Message}"
-                };
             }
             catch (Exception ex)
             {
+                await LogErrorAsync(ex, httpMethod, endpoint, queryParams, requestId);
                 return new ServiceResponseModel
                 {
                     Status = false,
-                    Message = $"Unexpected error: {ex.Message}"
+                    Message = $"Error resetting password: {ex.Message}"
                 };
             }
         }
 
-        public async Task<ServiceResponseModel> SignInAsync(SignInModel signIn)
+        public async Task<ServiceResponseModel> SignInAsync(SignInModel signIn, string httpMethod, string endpoint, string queryParams, string requestId)
         {
             try
             {
+                await LogActionAsync("Sign in attempt", httpMethod, endpoint, queryParams, requestId);
+
                 using (var connection = new MySqlConnection(_connectionString))
                 {
                     await connection.OpenAsync();
@@ -192,44 +194,41 @@ namespace FurniroomAPI.Services
                         var result = await command.ExecuteScalarAsync();
                         if (result == null)
                         {
+                            await LogActionAsync("Sign in failed: invalid credentials", httpMethod, endpoint, queryParams, requestId);
                             return new ServiceResponseModel
                             {
-                                Status = true,
-                                Message = $"Incorrect email address or password."
+                                Status = false,
+                                Message = "Incorrect email address or password."
                             };
                         }
 
+                        await LogActionAsync("Sign in successful", httpMethod, endpoint, queryParams, requestId);
                         return new ServiceResponseModel
                         {
                             Status = true,
-                            Message = "Data confirmed.",
+                            Message = "Authentication successful.",
                             Data = result
                         };
                     }
                 }
             }
-            catch (MySqlException ex)
-            {
-                return new ServiceResponseModel
-                {
-                    Status = false,
-                    Message = $"A database error occurred: {ex.Message}"
-                };
-            }
             catch (Exception ex)
             {
+                await LogErrorAsync(ex, httpMethod, endpoint, queryParams, requestId);
                 return new ServiceResponseModel
                 {
                     Status = false,
-                    Message = $"An unexpected error occurred: {ex.Message}"
+                    Message = $"Error during sign in: {ex.Message}"
                 };
             }
         }
 
-        public async Task<ServiceResponseModel> SignUpAsync(SignUpModel signUp)
+        public async Task<ServiceResponseModel> SignUpAsync(SignUpModel signUp, string httpMethod, string endpoint, string queryParams, string requestId)
         {
             try
             {
+                await LogActionAsync("Sign up started", httpMethod, endpoint, queryParams, requestId);
+
                 using (var connection = new MySqlConnection(_connectionString))
                 {
                     await connection.OpenAsync();
@@ -237,10 +236,9 @@ namespace FurniroomAPI.Services
                     using (var checkIdCommand = new MySqlCommand(_requests["CheckAccountId"], connection))
                     {
                         checkIdCommand.Parameters.AddWithValue("@AccountId", signUp.AccountId);
-                        var idExists = Convert.ToInt32(await checkIdCommand.ExecuteScalarAsync()) > 0;
-
-                        if (idExists)
+                        if (Convert.ToInt32(await checkIdCommand.ExecuteScalarAsync()) > 0)
                         {
+                            await LogActionAsync("Account ID already exists", httpMethod, endpoint, queryParams, requestId);
                             return new ServiceResponseModel
                             {
                                 Status = false,
@@ -252,10 +250,9 @@ namespace FurniroomAPI.Services
                     using (var checkEmailCommand = new MySqlCommand(_requests["CheckEmail"], connection))
                     {
                         checkEmailCommand.Parameters.AddWithValue("@Email", signUp.Email);
-                        var emailExists = Convert.ToInt32(await checkEmailCommand.ExecuteScalarAsync()) > 0;
-
-                        if (emailExists)
+                        if (Convert.ToInt32(await checkEmailCommand.ExecuteScalarAsync()) > 0)
                         {
+                            await LogActionAsync("Email already exists", httpMethod, endpoint, queryParams, requestId);
                             return new ServiceResponseModel
                             {
                                 Status = false,
@@ -267,10 +264,9 @@ namespace FurniroomAPI.Services
                     using (var checkNameCommand = new MySqlCommand(_requests["CheckAccountName"], connection))
                     {
                         checkNameCommand.Parameters.AddWithValue("@AccountName", signUp.AccountName);
-                        var nameExists = Convert.ToInt32(await checkNameCommand.ExecuteScalarAsync()) > 0;
-
-                        if (nameExists)
+                        if (Convert.ToInt32(await checkNameCommand.ExecuteScalarAsync()) > 0)
                         {
+                            await LogActionAsync("Account name already exists", httpMethod, endpoint, queryParams, requestId);
                             return new ServiceResponseModel
                             {
                                 Status = false,
@@ -290,29 +286,22 @@ namespace FurniroomAPI.Services
                     }
                 }
 
+                await LogActionAsync("Account created successfully", httpMethod, endpoint, queryParams, requestId);
                 return new ServiceResponseModel
                 {
                     Status = true,
                     Message = "Account successfully created."
                 };
             }
-            catch (MySqlException ex)
-            {
-                return new ServiceResponseModel
-                {
-                    Status = false,
-                    Message = $"A database error occurred: {ex.Message}"
-                };
-            }
             catch (Exception ex)
             {
+                await LogErrorAsync(ex, httpMethod, endpoint, queryParams, requestId);
                 return new ServiceResponseModel
                 {
                     Status = false,
-                    Message = $"An unexpected error occurred: {ex.Message}"
+                    Message = $"Error during sign up: {ex.Message}"
                 };
             }
-
         }
 
         private async Task SendEmailAsync(string recipientEmail, string messageBody, string subject)
@@ -336,22 +325,40 @@ namespace FurniroomAPI.Services
             }
         }
 
-        private string HashPasswordWithMD5(string password)
+        private async Task LogActionAsync(
+            string status,
+            string httpMethod,
+            string endpoint,
+            string queryParams,
+            string requestId)
         {
-            using (MD5 md5 = MD5.Create())
+            try
             {
-                byte[] inputBytes = Encoding.UTF8.GetBytes(password);
-                byte[] hashBytes = md5.ComputeHash(inputBytes);
-
-                StringBuilder sb = new StringBuilder();
-                foreach (byte b in hashBytes)
+                await _loggingService.AddLogAsync(new LogModel
                 {
-                    sb.Append(b.ToString("x2"));
-                }
-                return sb.ToString();
+                    Date = _logDate,
+                    HttpMethod = httpMethod,
+                    Endpoint = endpoint,
+                    QueryParams = queryParams,
+                    Status = status,
+                    RequestId = requestId
+                });
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Failed to log action: {ex.Message}");
             }
         }
 
-
+        private async Task LogErrorAsync(
+            Exception ex,
+            string httpMethod,
+            string endpoint,
+            string queryParams,
+            string requestId)
+        {
+            await LogActionAsync($"ERROR: {ex.GetType().Name} - {ex.Message}",
+                httpMethod, endpoint, queryParams, requestId);
+        }
     }
 }
