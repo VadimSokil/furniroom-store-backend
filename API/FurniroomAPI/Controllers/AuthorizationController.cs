@@ -293,6 +293,8 @@ namespace FurniroomAPI.Controllers
             }
             else
             {
+                await Task.Delay(2000);
+
                 var serviceResponse = await _authorizationService.SignInAsync(
                     signIn,
                     _httpRequest.Method,
