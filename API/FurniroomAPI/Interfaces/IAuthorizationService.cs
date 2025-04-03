@@ -1,4 +1,4 @@
-﻿using FurniroomAPI.Models.Authorization;
+﻿using FurniroomAPI.Models;
 using FurniroomAPI.Models.Response;
 
 namespace FurniroomAPI.Interfaces
@@ -10,6 +10,5 @@ namespace FurniroomAPI.Interfaces
         public Task<ServiceResponseModel> ResetPasswordAsync(string email, string httpMethod, string endpoint, string queryParams, string requestId);
         public Task<ServiceResponseModel> SignUpAsync(SignUpModel signUp, string httpMethod, string endpoint, string queryParams, string requestId);
         public Task<ServiceResponseModel> SignInAsync(SignInModel signIn, string httpMethod, string endpoint, string queryParams, string requestId);
-
     }
 }

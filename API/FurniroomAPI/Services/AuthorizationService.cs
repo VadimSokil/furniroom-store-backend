@@ -1,5 +1,5 @@
 ﻿using FurniroomAPI.Interfaces;
-using FurniroomAPI.Models.Authorization;
+using FurniroomAPI.Models;
 using FurniroomAPI.Models.Log;
 using FurniroomAPI.Models.Response;
 using MySql.Data.MySqlClient;

@@ -1,9 +1,8 @@
 ﻿using FurniroomAPI.Interfaces;
-using FurniroomAPI.Models.Authorization;
+using FurniroomAPI.Models;
 using FurniroomAPI.Models.Log;
 using FurniroomAPI.Models.Response;
 using Microsoft.AspNetCore.Mvc;
-using System.ComponentModel.DataAnnotations;
 using System.Net;
 using System.Text.Json;
 
@@ -14,17 +13,15 @@ namespace FurniroomAPI.Controllers
     public class AuthorizationController : ControllerBase
     {
         private readonly IAuthorizationService _authorizationService;
-        private readonly IValidationService _validationService;
         private readonly ILoggingService _loggingService;
         private readonly HttpRequest _httpRequest;
 
-        public AuthorizationController(IAuthorizationService authorizationService,
-                                    IValidationService validationService,
-                                    ILoggingService loggingService,
-                                    IHttpContextAccessor httpContextAccessor)
+        public AuthorizationController(
+            IAuthorizationService authorizationService,
+            ILoggingService loggingService,
+            IHttpContextAccessor httpContextAccessor)
         {
             _authorizationService = authorizationService;
-            _validationService = validationService;
             _loggingService = loggingService;
             _httpRequest = httpContextAccessor.HttpContext.Request;
         }
@@ -32,19 +29,13 @@ namespace FurniroomAPI.Controllers
         private async Task<ActionResult<APIResponseModel>> ProcessRequest<T>(
             T requestData,
             Func<T, string, Task<ServiceResponseModel>> serviceCall,
-            Func<T, string> getQueryParams,
-            Action<T>[] validations)
+            Func<T, string> getQueryParams)
         {
             var requestId = Guid.NewGuid().ToString();
             var formattedTime = DateTime.UtcNow.ToString("dd/MM/yyyy HH:mm:ss") + " UTC";
             var queryParams = getQueryParams(requestData);
 
             await LogActionAsync("Request started", queryParams, requestId);
-
-            foreach (var validate in validations)
-            {
-                validate(requestData);
-            }
 
             if (!ModelState.IsValid)
             {
@@ -88,7 +79,11 @@ namespace FurniroomAPI.Controllers
             {
                 Date = formattedTime,
                 Status = false,
-                Message = message
+                Message = message,
+                Data = ModelState.Values
+                    .SelectMany(v => v.Errors)
+                    .Select(e => e.ErrorMessage)
+                    .Where(m => !string.IsNullOrEmpty(m))
             };
         }
 
@@ -103,15 +98,7 @@ namespace FurniroomAPI.Controllers
                     _httpRequest.Path,
                     JsonSerializer.Serialize(data),
                     requestId),
-                data => JsonSerializer.Serialize(data),
-                new Action<SignUpModel>[]
-                {
-                    data => ValidateDigit((int)data.AccountId, "Account ID must be a positive number."),
-                    data => ValidateLength(data.AccountName, 50, "Account name cannot exceed 50 characters."),
-                    data => ValidateEmail(data.Email),
-                    data => ValidateLength(data.Email, 254, "Email cannot exceed 254 characters."),
-                    data => ValidateLength(data.PasswordHash, 128, "Password hash cannot exceed 128 characters.")
-                });
+                data => JsonSerializer.Serialize(data));
         }
 
         [HttpPost("sign-in")]
@@ -125,95 +112,49 @@ namespace FurniroomAPI.Controllers
                     _httpRequest.Path,
                     JsonSerializer.Serialize(data),
                     requestId),
-                data => JsonSerializer.Serialize(data),
-                new Action<SignInModel>[]
-                {
-                    data => ValidateEmail(data.Email),
-                    data => ValidateLength(data.Email, 254, "Email cannot exceed 254 characters."),
-                    data => ValidateLength(data.PasswordHash, 128, "Password hash cannot exceed 128 characters.")
-                });
+                data => JsonSerializer.Serialize(data));
         }
 
         [HttpPost("reset-password")]
-        public async Task<ActionResult<APIResponseModel>> ResetPassword([FromBody][Required] string email)
+        public async Task<ActionResult<APIResponseModel>> ResetPassword([FromBody] EmailModel email)
         {
             return await ProcessRequest(
                 email,
                 (data, requestId) => _authorizationService.ResetPasswordAsync(
-                    data,
+                    data.Email,
                     _httpRequest.Method,
                     _httpRequest.Path,
                     string.Empty,
                     requestId),
-                data => string.Empty,
-                new Action<string>[]
-                {
-                    data => ValidateEmail(data),
-                    data => ValidateLength(data, 254, "Email cannot exceed 254 characters.")
-                });
+                data => string.Empty);
         }
 
         [HttpGet("check-email")]
-        public async Task<ActionResult<APIResponseModel>> CheckEmail([FromQuery][Required] string email)
+        public async Task<ActionResult<APIResponseModel>> CheckEmail([FromQuery] EmailModel email)
         {
             return await ProcessRequest(
                 email,
                 (data, requestId) => _authorizationService.CheckEmailAsync(
-                    data,
+                    data.Email,
                     _httpRequest.Method,
                     _httpRequest.Path,
-                    $"email={WebUtility.UrlEncode(data)}",
+                    $"email={WebUtility.UrlEncode(data.Email)}",
                     requestId),
-                data => $"email={WebUtility.UrlEncode(data)}",
-                new Action<string>[]
-                {
-                    data => ValidateEmail(data),
-                    data => ValidateLength(data, 254, "Email cannot exceed 254 characters.")
-                });
+                data => $"email={WebUtility.UrlEncode(data.Email)}");
         }
 
         [HttpGet("generate-verification-code")]
-        public async Task<ActionResult<APIResponseModel>> GenerateCode([FromQuery][Required] string email)
+        public async Task<ActionResult<APIResponseModel>> GenerateCode([FromQuery] EmailModel email)
         {
             return await ProcessRequest(
                 email,
                 (data, requestId) => _authorizationService.GenerateCodeAsync(
-                    data,
+                    data.Email,
                     _httpRequest.Method,
                     _httpRequest.Path,
                     string.Empty,
                     requestId),
-                data => string.Empty,
-                new Action<string>[]
-                {
-                    data => ValidateEmail(data),
-                    data => ValidateLength(data, 254, "Email cannot exceed 254 characters.")
-                });
-        }
-
-        private void ValidateDigit(int value, string errorMessage)
-        {
-            if (!_validationService.IsValidDigit(value))
-            {
-                ModelState.AddModelError(string.Empty, errorMessage);
-            }
-        }
-
-        private void ValidateLength(string value, int maxLength, string errorMessage)
-        {
-            if (!_validationService.IsValidLength(value, maxLength))
-            {
-                ModelState.AddModelError(string.Empty, errorMessage);
-            }
-        }
-
-        private void ValidateEmail(string email)
-        {
-            if (!_validationService.IsValidEmail(email))
-            {
-                ModelState.AddModelError(string.Empty,
-                    "Email should be in format: example@domain.com");
-            }
+                data => string.Empty);
         }
     }
 }
