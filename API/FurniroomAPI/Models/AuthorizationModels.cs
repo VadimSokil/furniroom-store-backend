@@ -1,44 +1,85 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Reflection;
 
 namespace FurniroomAPI.Models
 {
-    public class SignInModel
+    public abstract class StrictValidationModel
     {
-        [Required(ErrorMessage = "Email is required")]
-        [MaxLength(254, ErrorMessage = "Email cannot exceed 254 characters")]
-        [EmailAddress(ErrorMessage = "Email should be in format: example@domain.com")]
-        public string? Email { get; set; }
+        public List<string> ValidateStrict(JsonElement jsonElement)
+        {
+            var errors = new List<string>();
+            var modelType = GetType();
 
-        [Required(ErrorMessage = "Password is required")]
-        [MaxLength(128, ErrorMessage = "Password hash cannot exceed 128 characters")]
-        public string? PasswordHash { get; set; }
+            var expectedProps = modelType.GetProperties()
+                .Select(p => p.GetCustomAttribute<JsonPropertyNameAttribute>()?.Name)
+                .Where(name => name != null)
+                .ToHashSet();
+
+            foreach (var prop in modelType.GetProperties())
+            {
+                if (prop.GetCustomAttribute<RequiredAttribute>() != null &&
+                    !jsonElement.TryGetProperty(
+                        prop.GetCustomAttribute<JsonPropertyNameAttribute>()?.Name ?? prop.Name,
+                        out _))
+                {
+                    errors.Add($"Missing required field: {prop.GetCustomAttribute<JsonPropertyNameAttribute>()?.Name ?? prop.Name}");
+                }
+            }
+
+            foreach (var jsonProp in jsonElement.EnumerateObject())
+            {
+                if (!expectedProps.Contains(jsonProp.Name))
+                {
+                    errors.Add($"Unexpected field: {jsonProp.Name}");
+                }
+            }
+
+            return errors;
+        }
     }
 
-    public class SignUpModel
+    public class SignInModel : StrictValidationModel
+    {
+        [Required(ErrorMessage = "Email is required")]
+        [EmailAddress(ErrorMessage = "Invalid email format")]
+        [JsonPropertyName("email")]
+        public string Email { get; set; }
+
+        [Required(ErrorMessage = "Password is required")]
+        [JsonPropertyName("passwordHash")]
+        public string PasswordHash { get; set; }
+    }
+
+    public class SignUpModel : StrictValidationModel
     {
         [Required(ErrorMessage = "Account ID is required")]
-        [Range(1, int.MaxValue, ErrorMessage = "Account ID must be a positive number")]
-        public int? AccountId { get; set; }
+        [Range(1, int.MaxValue, ErrorMessage = "Account ID must be positive")]
+        [JsonPropertyName("accountId")]
+        public int AccountId { get; set; }
 
         [Required(ErrorMessage = "Account name is required")]
-        [MaxLength(50, ErrorMessage = "Account name cannot exceed 50 characters")]
-        public string? AccountName { get; set; }
+        [StringLength(50, ErrorMessage = "Account name cannot exceed 50 characters")]
+        [JsonPropertyName("accountName")]
+        public string AccountName { get; set; }
 
         [Required(ErrorMessage = "Email is required")]
-        [MaxLength(254, ErrorMessage = "Email cannot exceed 254 characters")]
-        [EmailAddress(ErrorMessage = "Email should be in format: example@domain.com")]
-        public string? Email { get; set; }
+        [EmailAddress(ErrorMessage = "Invalid email format")]
+        [JsonPropertyName("email")]
+        public string Email { get; set; }
 
         [Required(ErrorMessage = "Password is required")]
-        [MaxLength(128, ErrorMessage = "Password hash cannot exceed 128 characters")]
-        public string? PasswordHash { get; set; }
+        [StringLength(128, ErrorMessage = "Password cannot exceed 128 characters")]
+        [JsonPropertyName("passwordHash")]
+        public string PasswordHash { get; set; }
     }
 
-    public class EmailModel
+    public class EmailRequest : StrictValidationModel
     {
         [Required(ErrorMessage = "Email is required")]
-        [MaxLength(254, ErrorMessage = "Email cannot exceed 254 characters")]
-        [EmailAddress(ErrorMessage = "Email should be in format: example@domain.com")]
-        public string? Email { get; set; }
+        [EmailAddress(ErrorMessage = "Invalid email format")]
+        [JsonPropertyName("email")]
+        public string Email { get; set; }
     }
 }

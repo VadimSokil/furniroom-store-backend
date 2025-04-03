@@ -5,16 +5,23 @@ using FurniroomAPI.Models.Response;
 using Microsoft.AspNetCore.Mvc;
 using System.Net;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace FurniroomAPI.Controllers
 {
     [Route("authorization")]
     [ApiController]
+    [Produces("application/json")]
     public class AuthorizationController : ControllerBase
     {
         private readonly IAuthorizationService _authorizationService;
         private readonly ILoggingService _loggingService;
         private readonly HttpRequest _httpRequest;
+        private readonly JsonSerializerOptions _jsonOptions = new()
+        {
+            PropertyNameCaseInsensitive = true,
+            Converters = { new JsonStringEnumConverter() }
+        };
 
         public AuthorizationController(
             IAuthorizationService authorizationService,
@@ -28,31 +35,73 @@ namespace FurniroomAPI.Controllers
 
         private async Task<ActionResult<APIResponseModel>> ProcessRequest<T>(
             T requestData,
+            JsonElement rawJson,
             Func<T, string, Task<ServiceResponseModel>> serviceCall,
-            Func<T, string> getQueryParams)
+            Func<T, string> getQueryParams) where T : StrictValidationModel
         {
             var requestId = Guid.NewGuid().ToString();
             var formattedTime = DateTime.UtcNow.ToString("dd/MM/yyyy HH:mm:ss") + " UTC";
-            var queryParams = getQueryParams(requestData);
 
-            await LogActionAsync("Request started", queryParams, requestId);
+            var strictErrors = requestData.ValidateStrict(rawJson);
+            if (strictErrors?.Count > 0)
+            {
+                await LogActionAsync($"Validation failed: {string.Join(", ", strictErrors)}",
+                                   rawJson.ToString(), requestId);
+                return BadRequest(new APIResponseModel
+                {
+                    Date = formattedTime,
+                    Status = false,
+                    Message = "Validation error",
+                    Data = strictErrors
+                });
+            }
 
             if (!ModelState.IsValid)
             {
-                return await HandleValidationError("Invalid request structure", queryParams, requestId, formattedTime);
+                var modelErrors = ModelState.Values
+                    .SelectMany(v => v.Errors)
+                    .Select(e => e.ErrorMessage)
+                    .Where(m => !string.IsNullOrEmpty(m))
+                    .ToList();
+
+                await LogActionAsync($"Validation failed: {string.Join(", ", modelErrors)}",
+                                   rawJson.ToString(), requestId);
+                return BadRequest(new APIResponseModel
+                {
+                    Date = formattedTime,
+                    Status = false,
+                    Message = "Validation error",
+                    Data = modelErrors
+                });
             }
 
-            var serviceResponse = await serviceCall(requestData, requestId);
-            var gatewayResponse = new APIResponseModel
-            {
-                Date = formattedTime,
-                Status = serviceResponse.Status,
-                Message = serviceResponse.Message,
-                Data = serviceResponse.Data
-            };
+            var queryParams = getQueryParams(requestData);
+            await LogActionAsync("Request started", queryParams, requestId);
 
-            await LogActionAsync("Request completed", queryParams, requestId);
-            return Ok(gatewayResponse);
+            try
+            {
+                var serviceResponse = await serviceCall(requestData, requestId);
+                await LogActionAsync("Request completed", queryParams, requestId);
+
+                return Ok(new APIResponseModel
+                {
+                    Date = formattedTime,
+                    Status = serviceResponse.Status,
+                    Message = serviceResponse.Message,
+                    Data = serviceResponse.Data
+                });
+            }
+            catch (Exception ex)
+            {
+                await LogActionAsync($"Error: {ex.Message}", queryParams, requestId);
+                return StatusCode(500, new APIResponseModel
+                {
+                    Date = formattedTime,
+                    Status = false,
+                    Message = "Internal server error",
+                    Data = ex.Message
+                });
+            }
         }
 
         private async Task LogActionAsync(string status, string queryParams, string requestId)
@@ -68,93 +117,89 @@ namespace FurniroomAPI.Controllers
             });
         }
 
-        private async Task<ActionResult<APIResponseModel>> HandleValidationError(
-            string message,
-            string queryParams,
-            string requestId,
-            string formattedTime)
-        {
-            await LogActionAsync(message, queryParams, requestId);
-            return new APIResponseModel
-            {
-                Date = formattedTime,
-                Status = false,
-                Message = message,
-                Data = ModelState.Values
-                    .SelectMany(v => v.Errors)
-                    .Select(e => e.ErrorMessage)
-                    .Where(m => !string.IsNullOrEmpty(m))
-            };
-        }
-
         [HttpPost("sign-up")]
-        public async Task<ActionResult<APIResponseModel>> SignUp([FromBody] SignUpModel signUp)
+        public async Task<ActionResult<APIResponseModel>> SignUp()
         {
+            using var doc = await JsonDocument.ParseAsync(Request.Body);
+            var request = JsonSerializer.Deserialize<SignUpModel>(doc.RootElement, _jsonOptions);
             return await ProcessRequest(
-                signUp,
+                request,
+                doc.RootElement,
                 (data, requestId) => _authorizationService.SignUpAsync(
                     data,
                     _httpRequest.Method,
                     _httpRequest.Path,
-                    JsonSerializer.Serialize(data),
+                    JsonSerializer.Serialize(data, _jsonOptions),
                     requestId),
-                data => JsonSerializer.Serialize(data));
+                data => JsonSerializer.Serialize(data, _jsonOptions));
         }
 
         [HttpPost("sign-in")]
-        public async Task<ActionResult<APIResponseModel>> SignIn([FromBody] SignInModel signIn)
+        public async Task<ActionResult<APIResponseModel>> SignIn()
         {
+            using var doc = await JsonDocument.ParseAsync(Request.Body);
+            var request = JsonSerializer.Deserialize<SignInModel>(doc.RootElement, _jsonOptions);
             return await ProcessRequest(
-                signIn,
+                request,
+                doc.RootElement,
                 (data, requestId) => _authorizationService.SignInAsync(
                     data,
                     _httpRequest.Method,
                     _httpRequest.Path,
-                    JsonSerializer.Serialize(data),
+                    JsonSerializer.Serialize(data, _jsonOptions),
                     requestId),
-                data => JsonSerializer.Serialize(data));
+                data => JsonSerializer.Serialize(data, _jsonOptions));
         }
 
         [HttpPost("reset-password")]
-        public async Task<ActionResult<APIResponseModel>> ResetPassword([FromBody] EmailModel email)
+        public async Task<ActionResult<APIResponseModel>> ResetPassword()
         {
+            using var doc = await JsonDocument.ParseAsync(Request.Body);
+            var request = JsonSerializer.Deserialize<EmailRequest>(doc.RootElement, _jsonOptions);
             return await ProcessRequest(
-                email,
+                request,
+                doc.RootElement,
                 (data, requestId) => _authorizationService.ResetPasswordAsync(
                     data.Email,
                     _httpRequest.Method,
                     _httpRequest.Path,
-                    string.Empty,
+                    JsonSerializer.Serialize(data, _jsonOptions),
                     requestId),
-                data => string.Empty);
+                data => JsonSerializer.Serialize(data, _jsonOptions));
         }
 
         [HttpGet("check-email")]
-        public async Task<ActionResult<APIResponseModel>> CheckEmail([FromQuery] EmailModel email)
+        public async Task<ActionResult<APIResponseModel>> CheckEmail([FromQuery] string email)
         {
+            var request = new EmailRequest { Email = email };
+            var jsonElement = JsonSerializer.SerializeToElement(request, _jsonOptions);
             return await ProcessRequest(
-                email,
+                request,
+                jsonElement,
                 (data, requestId) => _authorizationService.CheckEmailAsync(
                     data.Email,
                     _httpRequest.Method,
                     _httpRequest.Path,
-                    $"email={WebUtility.UrlEncode(data.Email)}",
+                    JsonSerializer.Serialize(data, _jsonOptions),
                     requestId),
-                data => $"email={WebUtility.UrlEncode(data.Email)}");
+                data => JsonSerializer.Serialize(data, _jsonOptions));
         }
 
         [HttpGet("generate-verification-code")]
-        public async Task<ActionResult<APIResponseModel>> GenerateCode([FromQuery] EmailModel email)
+        public async Task<ActionResult<APIResponseModel>> GenerateCode([FromQuery] string email)
         {
+            var request = new EmailRequest { Email = email };
+            var jsonElement = JsonSerializer.SerializeToElement(request, _jsonOptions);
             return await ProcessRequest(
-                email,
+                request,
+                jsonElement,
                 (data, requestId) => _authorizationService.GenerateCodeAsync(
                     data.Email,
                     _httpRequest.Method,
                     _httpRequest.Path,
-                    string.Empty,
+                    JsonSerializer.Serialize(data, _jsonOptions),
                     requestId),
-                data => string.Empty);
+                data => JsonSerializer.Serialize(data, _jsonOptions));
         }
     }
 }
