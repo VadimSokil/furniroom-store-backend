@@ -18,7 +18,7 @@ namespace FurniroomAPI.Controllers
         private readonly ILoggingService _loggingService;
         private readonly HttpRequest _httpRequest;
 
-        public AuthorizationController(IAuthorizationService authorizationService,IValidationService validationService, ILoggingService loggingService, IHttpContextAccessor httpContextAccessor)
+        public AuthorizationController(IAuthorizationService authorizationService, IValidationService validationService, ILoggingService loggingService, IHttpContextAccessor httpContextAccessor)
         {
             _authorizationService = authorizationService;
             _validationService = validationService;
@@ -44,6 +44,22 @@ namespace FurniroomAPI.Controllers
 
             if (!ModelState.IsValid)
             {
+                var errorMessages = ModelState.Values
+                    .SelectMany(v => v.Errors)
+                    .Select(e => e.ErrorMessage)
+                    .Where(m => !string.IsNullOrEmpty(m));
+
+                if (errorMessages.Any())
+                {
+                    await LogActionAsync($"Request validation failed: {string.Join("; ", errorMessages)}", transfer);
+                    return new APIResponseModel
+                    {
+                        Date = formattedTime,
+                        Status = false,
+                        Message = string.Join("; ", errorMessages)
+                    };
+                }
+
                 var typeErrors = ModelState
                     .Where(x => x.Value.Errors.Any(e => e.Exception != null))
                     .Select(x => $"Field '{x.Key}' has invalid type");
@@ -75,19 +91,7 @@ namespace FurniroomAPI.Controllers
 
             if (!ModelState.IsValid)
             {
-                var errorMessages = ModelState.Values
-                    .SelectMany(v => v.Errors)
-                    .Select(e => e.ErrorMessage)
-                    .Where(m => !string.IsNullOrEmpty(m));
-
-                await LogActionAsync($"Validation failed: {string.Join("; ", errorMessages)}", transfer);
-
-                return new APIResponseModel
-                {
-                    Date = formattedTime,
-                    Status = false,
-                    Message = string.Join("; ", errorMessages)
-                };
+                return await HandleValidationError(transfer, formattedTime);
             }
 
             var serviceResponse = await serviceCall(requestData, transfer);
@@ -101,6 +105,23 @@ namespace FurniroomAPI.Controllers
 
             await LogActionAsync("Request completed", transfer);
             return Ok(gatewayResponse);
+        }
+
+        private async Task<ActionResult<APIResponseModel>> HandleValidationError(TransferLogModel transfer, string formattedTime)
+        {
+            var errorMessages = ModelState.Values
+                .SelectMany(v => v.Errors)
+                .Select(e => e.ErrorMessage)
+                .Where(m => !string.IsNullOrEmpty(m));
+
+            await LogActionAsync($"Validation failed: {string.Join("; ", errorMessages)}", transfer);
+
+            return new APIResponseModel
+            {
+                Date = formattedTime,
+                Status = false,
+                Message = string.Join("; ", errorMessages)
+            };
         }
 
         [HttpPost("sign-up")]
@@ -150,9 +171,9 @@ namespace FurniroomAPI.Controllers
                 data => string.Empty,
                 new Action<string>[]
                 {
-                    data => ValidateRequired(data, "Email"),
-                    data => ValidateEmail(data, "Email"),
-                    data => ValidateLength(data, "Email", 254)
+                    data => ValidateRequired(data, nameof(data)),
+                    data => ValidateEmail(data, nameof(data)),
+                    data => ValidateLength(data, nameof(data), 254)
                 });
         }
 
@@ -165,9 +186,9 @@ namespace FurniroomAPI.Controllers
                 data => $"email={WebUtility.UrlEncode(data)}",
                 new Action<string>[]
                 {
-                    data => ValidateRequired(data, "Email"),
-                    data => ValidateEmail(data, "Email"),
-                    data => ValidateLength(data, "Email", 254)
+                    data => ValidateRequired(data, nameof(data)),
+                    data => ValidateEmail(data, nameof(data)),
+                    data => ValidateLength(data, nameof(data), 254)
                 });
         }
 
@@ -180,9 +201,9 @@ namespace FurniroomAPI.Controllers
                 data => string.Empty,
                 new Action<string>[]
                 {
-                    data => ValidateRequired(data, "Email"),
-                    data => ValidateEmail(data, "Email"),
-                    data => ValidateLength(data, "Email", 254)
+                    data => ValidateRequired(data, nameof(data)),
+                    data => ValidateEmail(data, nameof(data)),
+                    data => ValidateLength(data, nameof(data), 254)
                 });
         }
 
@@ -190,7 +211,7 @@ namespace FurniroomAPI.Controllers
         {
             if (value == null)
             {
-                ModelState.AddModelError(fieldName, $"Field '{fieldName}' is missing");
+                ModelState.AddModelError(fieldName, $"Field '{fieldName}' is required");
             }
             else if (value is string strValue && string.IsNullOrWhiteSpace(strValue))
             {
@@ -202,13 +223,13 @@ namespace FurniroomAPI.Controllers
         {
             if (!_validationService.IsValidDigit(value))
             {
-                ModelState.AddModelError(fieldName, $"Field '{fieldName}' must be positive number");
+                ModelState.AddModelError(fieldName, $"Field '{fieldName}' must be a positive number");
             }
         }
 
         private void ValidateLength(string value, string fieldName, int maxLength)
         {
-            if (!_validationService.IsValidLength(value, maxLength))
+            if (value != null && !_validationService.IsValidLength(value, maxLength))
             {
                 ModelState.AddModelError(fieldName, $"Field '{fieldName}' cannot exceed {maxLength} characters");
             }
@@ -218,7 +239,7 @@ namespace FurniroomAPI.Controllers
         {
             if (!_validationService.IsValidEmail(email))
             {
-                ModelState.AddModelError(fieldName, $"Field '{fieldName}' must be valid email (example@domain.com)");
+                ModelState.AddModelError(fieldName, $"Field '{fieldName}' must be a valid email (example@domain.com)");
             }
         }
 
