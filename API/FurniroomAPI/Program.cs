@@ -1,5 +1,6 @@
 using FurniroomAPI.Interfaces;
 using FurniroomAPI.Services;
+using Microsoft.AspNetCore.Mvc;
 
 namespace FurniroomAPI
 {
@@ -8,31 +9,29 @@ namespace FurniroomAPI
         public static void Main(string[] args)
         {
             var builder = WebApplication.CreateBuilder(args);
-            ConfigureServices(builder);
-            var app = builder.Build();
-            ConfigureMiddleware(app);
-            app.Run();
-        }
 
-        private static void ConfigureServices(WebApplicationBuilder builder)
-        {
             var configuration = builder.Configuration;
 
             var connectionString = Environment.GetEnvironmentVariable("connectionString");
             var serviceEmail = Environment.GetEnvironmentVariable("serviceEmail");
             var servicePassword = Environment.GetEnvironmentVariable("servicePassword");
+            var requestsSection = configuration.GetSection("Requests");
 
-            var requests = configuration.GetSection("Requests").GetChildren().ToDictionary(x => x.Key, x => x.Value!);
+            var requests = new Dictionary<string, string>();
+            foreach (var request in requestsSection.GetChildren())
+            {
+                requests[request.Key] = request.Value;
+            }
 
+            builder.Services.AddScoped<ICatalogService, CatalogService>(provider => new CatalogService(connectionString, requests, provider.GetRequiredService<ILoggingService>()));
+            builder.Services.AddScoped<IConditionsService, ConditionsService>(provider => new ConditionsService(connectionString, requests, provider.GetRequiredService<ILoggingService>()));
+            builder.Services.AddScoped<IOrdersService, OrdersService>(provider => new OrdersService(connectionString, requests, provider.GetRequiredService<ILoggingService>()));
+            builder.Services.AddScoped<IAuthorizationService, AuthorizationService>(provider => new AuthorizationService(connectionString, serviceEmail, servicePassword, requests, provider.GetRequiredService<ILoggingService>()));
+            builder.Services.AddScoped<IAccountService, AccountService>(provider => new AccountService(connectionString, requests, provider.GetRequiredService<ILoggingService>()));
+
+            builder.Services.AddScoped<IValidationService, ValidationService>(provider => new ValidationService());
+            builder.Services.AddScoped<ILoggingService, LoggingService>(provider => new LoggingService(connectionString, requests));
             builder.Services.AddHttpContextAccessor();
-            builder.Services.AddScoped<IValidationService, ValidationService>();
-            builder.Services.AddScoped<ILoggingService>(provider => new LoggingService(connectionString, requests));
-
-            builder.Services.AddScoped<ICatalogService>(provider => new CatalogService(connectionString, requests, provider.GetRequiredService<ILoggingService>()));
-            builder.Services.AddScoped<IConditionsService>(provider => new ConditionsService(connectionString, requests, provider.GetRequiredService<ILoggingService>()));
-            builder.Services.AddScoped<IOrdersService>(provider => new OrdersService(connectionString, requests, provider.GetRequiredService<ILoggingService>()));
-            builder.Services.AddScoped<IAuthorizationService>(provider => new AuthorizationService(connectionString, serviceEmail, servicePassword, requests, provider.GetRequiredService<ILoggingService>()));
-            builder.Services.AddScoped<IAccountService>(provider => new AccountService(connectionString, requests, provider.GetRequiredService<ILoggingService>()));
 
             builder.Services.AddCors(options =>
             {
@@ -44,24 +43,28 @@ namespace FurniroomAPI
                 });
             });
 
-            builder.Services.AddControllers().ConfigureApiBehaviorOptions(options => { options.SuppressModelStateInvalidFilter = true; });
-            builder.Services.AddEndpointsApiExplorer();
-            builder.Services.AddSwaggerGen(c => {c.SwaggerDoc("v1", new() { Title = "Furniroom API", Version = "v1" }); });
-        }
+            builder.Services.Configure<ApiBehaviorOptions>(options =>
+            {
+                options.SuppressModelStateInvalidFilter = true;
+            });
 
-        private static void ConfigureMiddleware(WebApplication app)
-        {
+            builder.Services.AddControllers();
+            builder.Services.AddEndpointsApiExplorer();
+            builder.Services.AddSwaggerGen();
+
+            var app = builder.Build();
+
             app.UseCors("AllowAll");
 
             var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";
             app.Urls.Add($"http://0.0.0.0:{port}");
 
-            if (app.Environment.IsDevelopment())
+            if (app.Environment.IsDevelopment() || app.Environment.IsProduction())
             {
                 app.UseSwagger();
                 app.UseSwaggerUI(c =>
                 {
-                    c.SwaggerEndpoint("/swagger/v1/swagger.json", "Furniroom API v1");
+                    c.SwaggerEndpoint("/swagger/v1/swagger.json", "Furniroom API");
                     c.RoutePrefix = string.Empty;
                 });
             }
@@ -69,6 +72,8 @@ namespace FurniroomAPI
             app.UseHttpsRedirection();
             app.UseAuthorization();
             app.MapControllers();
+
+            app.Run();
         }
     }
 }
