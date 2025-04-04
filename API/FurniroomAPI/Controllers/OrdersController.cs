@@ -26,7 +26,7 @@ namespace FurniroomAPI.Controllers
             _httpRequest = httpContextAccessor.HttpContext.Request;
         }
 
-        private async Task<ActionResult<APIResponseModel>> ProcessRequest<T>(T requestData,Func<T, TransferLogModel, Task<ServiceResponseModel>> serviceCall, Func<T, string> getQueryParams, Action<T>[] validations)
+        private async Task<ActionResult<APIResponseModel>> ProcessRequest<T>(T requestData, Func<T, TransferLogModel, Task<ServiceResponseModel>> serviceCall, Func<T, string> getQueryParams, Action<T>[] validations)
         {
             var requestId = Guid.NewGuid().ToString();
             var formattedTime = DateTime.UtcNow.ToString("dd/MM/yyyy HH:mm:ss") + " UTC";
@@ -44,37 +44,6 @@ namespace FurniroomAPI.Controllers
 
             if (!ModelState.IsValid)
             {
-                var errorMessages = ModelState.Values
-                    .SelectMany(v => v.Errors)
-                    .Select(e => e.ErrorMessage)
-                    .Where(m => !string.IsNullOrEmpty(m));
-
-                if (errorMessages.Any())
-                {
-                    await LogActionAsync($"Request validation failed: {string.Join("; ", errorMessages)}", transfer);
-                    return new APIResponseModel
-                    {
-                        Date = formattedTime,
-                        Status = false,
-                        Message = string.Join("; ", errorMessages)
-                    };
-                }
-
-                var typeErrors = ModelState
-                    .Where(x => x.Value.Errors.Any(e => e.Exception != null))
-                    .Select(x => $"Field '{x.Key}' has invalid type");
-
-                if (typeErrors.Any())
-                {
-                    await LogActionAsync("Type validation failed", transfer);
-                    return new APIResponseModel
-                    {
-                        Date = formattedTime,
-                        Status = false,
-                        Message = string.Join("; ", typeErrors)
-                    };
-                }
-
                 await LogActionAsync("Invalid request structure", transfer);
                 return new APIResponseModel
                 {
@@ -124,6 +93,19 @@ namespace FurniroomAPI.Controllers
             };
         }
 
+        private async Task LogActionAsync(string status, TransferLogModel transfer)
+        {
+            await _loggingService.AddLogAsync(new LogModel
+            {
+                Date = DateTime.UtcNow,
+                HttpMethod = transfer.HttpMethod,
+                Endpoint = transfer.Endpoint,
+                QueryParams = transfer.QueryParams,
+                Status = status,
+                RequestId = transfer.RequestId
+            });
+        }
+
         [HttpGet("get-account-orders-list")]
         public async Task<ActionResult<APIResponseModel>> GetAccountOrders([FromQuery][Required] int? accountId)
         {
@@ -133,7 +115,6 @@ namespace FurniroomAPI.Controllers
                 data => $"accountId={WebUtility.UrlEncode(data.ToString())}",
                 new Action<int?>[]
                 {
-                    data => ValidateRequired(data, nameof(data)),
                     data => ValidateDigit((int)data, nameof(data))
                 });
         }
@@ -147,13 +128,9 @@ namespace FurniroomAPI.Controllers
                 data => JsonSerializer.Serialize(data),
                 new Action<OrderModel>[]
                 {
-                    data => ValidateRequired(data.OrderId, nameof(data.OrderId)),
                     data => ValidateDigit((int)data.OrderId, nameof(data.OrderId)),
-                    data => ValidateRequired(data.OrderDate, nameof(data.OrderDate)),
                     data => ValidateLength(data.OrderDate, nameof(data.OrderDate), 20),
-                    data => ValidateRequired(data.AccountId, nameof(data.AccountId)),
                     data => ValidateDigit((int)data.AccountId, nameof(data.AccountId)),
-                    data => ValidateRequired(data.PhoneNumber, nameof(data.PhoneNumber)),
                     data => ValidatePhoneNumber(data.PhoneNumber, nameof(data.PhoneNumber)),
                     data => ValidateLength(data.PhoneNumber, nameof(data.PhoneNumber), 20),
                     data => ValidateLength(data.Country, nameof(data.Country), 100),
@@ -178,46 +155,28 @@ namespace FurniroomAPI.Controllers
                 data => JsonSerializer.Serialize(data),
                 new Action<QuestionModel>[]
                 {
-                    data => ValidateRequired(data.QuestionId, nameof(data.QuestionId)),
                     data => ValidateDigit((int)data.QuestionId, nameof(data.QuestionId)),
-                    data => ValidateRequired(data.QuestionDate, nameof(data.QuestionDate)),
                     data => ValidateLength(data.QuestionDate, nameof(data.QuestionDate), 20),
-                    data => ValidateRequired(data.UserName, nameof(data.UserName)),
                     data => ValidateLength(data.UserName, nameof(data.UserName), 50),
-                    data => ValidateRequired(data.PhoneNumber, nameof(data.PhoneNumber)),
                     data => ValidatePhoneNumber(data.PhoneNumber, nameof(data.PhoneNumber)),
                     data => ValidateLength(data.PhoneNumber, nameof(data.PhoneNumber), 20),
-                    data => ValidateRequired(data.Email, nameof(data.Email)),
                     data => ValidateEmail(data.Email, nameof(data.Email)),
                     data => ValidateLength(data.Email, nameof(data.Email), 254),
-                    data => ValidateRequired(data.QuestionText, nameof(data.QuestionText)),
                     data => ValidateLength(data.QuestionText, nameof(data.QuestionText), 5000)
                 });
-        }
-
-        private void ValidateRequired(object value, string fieldName)
-        {
-            if (value == null)
-            {
-                ModelState.AddModelError(fieldName, $"Field '{fieldName}' is required");
-            }
-            else if (value is string strValue && string.IsNullOrWhiteSpace(strValue))
-            {
-                ModelState.AddModelError(fieldName, $"Field '{fieldName}' cannot be empty");
-            }
         }
 
         private void ValidateDigit(int value, string fieldName)
         {
             if (!_validationService.IsValidDigit(value))
             {
-                ModelState.AddModelError(fieldName, $"Field '{fieldName}' must be a positive number");
+                ModelState.AddModelError(fieldName, $"Field '{fieldName}' must be positive number");
             }
         }
 
         private void ValidateLength(string value, string fieldName, int maxLength)
         {
-            if (value != null && !_validationService.IsValidLength(value, maxLength))
+            if (!_validationService.IsValidLength(value, maxLength))
             {
                 ModelState.AddModelError(fieldName, $"Field '{fieldName}' cannot exceed {maxLength} characters");
             }
@@ -227,7 +186,7 @@ namespace FurniroomAPI.Controllers
         {
             if (!_validationService.IsValidEmail(email))
             {
-                ModelState.AddModelError(fieldName, $"Field '{fieldName}' must be a valid email (example@domain.com)");
+                ModelState.AddModelError(fieldName, $"Field '{fieldName}' must be valid email (example@domain.com)");
             }
         }
 
@@ -238,19 +197,6 @@ namespace FurniroomAPI.Controllers
                 ModelState.AddModelError(fieldName,
                     $"Field '{fieldName}' must be in international format: +CCCXXXXXXXXXX");
             }
-        }
-
-        private async Task LogActionAsync(string status, TransferLogModel transfer)
-        {
-            await _loggingService.AddLogAsync(new LogModel
-            {
-                Date = DateTime.UtcNow,
-                HttpMethod = transfer.HttpMethod,
-                Endpoint = transfer.Endpoint,
-                QueryParams = transfer.QueryParams,
-                Status = status,
-                RequestId = transfer.RequestId
-            });
         }
     }
 }

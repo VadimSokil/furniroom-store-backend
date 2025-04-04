@@ -4,7 +4,6 @@ using FurniroomAPI.Models.Log;
 using FurniroomAPI.Models.Response;
 using Microsoft.AspNetCore.Mvc;
 using System.ComponentModel.DataAnnotations;
-using System.Net;
 using System.Text.Json;
 
 namespace FurniroomAPI.Controllers
@@ -44,37 +43,6 @@ namespace FurniroomAPI.Controllers
 
             if (!ModelState.IsValid)
             {
-                var errorMessages = ModelState.Values
-                    .SelectMany(v => v.Errors)
-                    .Select(e => e.ErrorMessage)
-                    .Where(m => !string.IsNullOrEmpty(m));
-
-                if (errorMessages.Any())
-                {
-                    await LogActionAsync($"Request validation failed: {string.Join("; ", errorMessages)}", transfer);
-                    return new APIResponseModel
-                    {
-                        Date = formattedTime,
-                        Status = false,
-                        Message = string.Join("; ", errorMessages)
-                    };
-                }
-
-                var typeErrors = ModelState
-                    .Where(x => x.Value.Errors.Any(e => e.Exception != null))
-                    .Select(x => $"Field '{x.Key}' has invalid type");
-
-                if (typeErrors.Any())
-                {
-                    await LogActionAsync("Type validation failed", transfer);
-                    return new APIResponseModel
-                    {
-                        Date = formattedTime,
-                        Status = false,
-                        Message = string.Join("; ", typeErrors)
-                    };
-                }
-
                 await LogActionAsync("Invalid request structure", transfer);
                 return new APIResponseModel
                 {
@@ -124,16 +92,28 @@ namespace FurniroomAPI.Controllers
             };
         }
 
+        private async Task LogActionAsync(string status, TransferLogModel transfer)
+        {
+            await _loggingService.AddLogAsync(new LogModel
+            {
+                Date = DateTime.UtcNow,
+                HttpMethod = transfer.HttpMethod,
+                Endpoint = transfer.Endpoint,
+                QueryParams = transfer.QueryParams,
+                Status = status,
+                RequestId = transfer.RequestId
+            });
+        }
+
         [HttpGet("get-account-information")]
         public async Task<ActionResult<APIResponseModel>> AccountInformation([FromQuery][Required] int? accountId)
         {
             return await ProcessRequest(
                 accountId,
                 (data, transfer) => _accountService.GetAccountInformationAsync((int)data, transfer),
-                data => $"accountId={WebUtility.UrlEncode(data.ToString())}",
+                data => $"accountId={data}",
                 new Action<int?>[]
                 {
-                    data => ValidateRequired(data, nameof(data)),
                     data => ValidateDigit((int)data, nameof(data))
                 });
         }
@@ -147,8 +127,6 @@ namespace FurniroomAPI.Controllers
                 data => JsonSerializer.Serialize(data),
                 new Action<ChangeNameModel>[]
                 {
-                    data => ValidateRequired(data.OldName, nameof(data.OldName)),
-                    data => ValidateRequired(data.NewName, nameof(data.NewName)),
                     data => ValidateLength(data.OldName, nameof(data.OldName), 50),
                     data => ValidateLength(data.NewName, nameof(data.NewName), 50)
                 });
@@ -163,8 +141,6 @@ namespace FurniroomAPI.Controllers
                 data => JsonSerializer.Serialize(data),
                 new Action<ChangeEmailModel>[]
                 {
-                    data => ValidateRequired(data.OldEmail, nameof(data.OldEmail)),
-                    data => ValidateRequired(data.NewEmail, nameof(data.NewEmail)),
                     data => ValidateEmail(data.OldEmail, nameof(data.OldEmail)),
                     data => ValidateEmail(data.NewEmail, nameof(data.NewEmail)),
                     data => ValidateLength(data.OldEmail, nameof(data.OldEmail), 254),
@@ -181,8 +157,6 @@ namespace FurniroomAPI.Controllers
                 data => JsonSerializer.Serialize(data),
                 new Action<ChangePasswordModel>[]
                 {
-                    data => ValidateRequired(data.OldPasswordHash, nameof(data.OldPasswordHash)),
-                    data => ValidateRequired(data.NewPasswordHash, nameof(data.NewPasswordHash)),
                     data => ValidateLength(data.OldPasswordHash, nameof(data.OldPasswordHash), 128),
                     data => ValidateLength(data.NewPasswordHash, nameof(data.NewPasswordHash), 128)
                 });
@@ -194,37 +168,24 @@ namespace FurniroomAPI.Controllers
             return await ProcessRequest(
                 accountId,
                 (data, transfer) => _accountService.DeleteAccountAsync((int)data, transfer),
-                data => $"accountId={WebUtility.UrlEncode(data.ToString())}",
+                data => $"accountId={data}",
                 new Action<int?>[]
                 {
-                    data => ValidateRequired(data, nameof(data)),
                     data => ValidateDigit((int)data, nameof(data))
                 });
-        }
-
-        private void ValidateRequired(object value, string fieldName)
-        {
-            if (value == null)
-            {
-                ModelState.AddModelError(fieldName, $"Field '{fieldName}' is required");
-            }
-            else if (value is string strValue && string.IsNullOrWhiteSpace(strValue))
-            {
-                ModelState.AddModelError(fieldName, $"Field '{fieldName}' cannot be empty");
-            }
         }
 
         private void ValidateDigit(int value, string fieldName)
         {
             if (!_validationService.IsValidDigit(value))
             {
-                ModelState.AddModelError(fieldName, $"Field '{fieldName}' must be a positive number");
+                ModelState.AddModelError(fieldName, $"Field '{fieldName}' must be positive number");
             }
         }
 
         private void ValidateLength(string value, string fieldName, int maxLength)
         {
-            if (value != null && !_validationService.IsValidLength(value, maxLength))
+            if (!_validationService.IsValidLength(value, maxLength))
             {
                 ModelState.AddModelError(fieldName, $"Field '{fieldName}' cannot exceed {maxLength} characters");
             }
@@ -234,21 +195,8 @@ namespace FurniroomAPI.Controllers
         {
             if (!_validationService.IsValidEmail(email))
             {
-                ModelState.AddModelError(fieldName, $"Field '{fieldName}' must be a valid email (example@domain.com)");
+                ModelState.AddModelError(fieldName, $"Field '{fieldName}' must be valid email (example@domain.com)");
             }
-        }
-
-        private async Task LogActionAsync(string status, TransferLogModel transfer)
-        {
-            await _loggingService.AddLogAsync(new LogModel
-            {
-                Date = DateTime.UtcNow,
-                HttpMethod = transfer.HttpMethod,
-                Endpoint = transfer.Endpoint,
-                QueryParams = transfer.QueryParams,
-                Status = status,
-                RequestId = transfer.RequestId
-            });
         }
     }
 }
