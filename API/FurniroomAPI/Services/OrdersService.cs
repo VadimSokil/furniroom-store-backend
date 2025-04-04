@@ -3,6 +3,7 @@ using FurniroomAPI.Interfaces;
 using FurniroomAPI.Models.Orders;
 using FurniroomAPI.Models.Response;
 using FurniroomAPI.Models.Log;
+using System.Data;
 
 namespace FurniroomAPI.Services
 {
@@ -11,283 +12,185 @@ namespace FurniroomAPI.Services
         private readonly string _connectionString;
         private readonly Dictionary<string, string> _requests;
         private readonly ILoggingService _loggingService;
-        private readonly DateTime _logDate;
 
-        public OrdersService(
-            string connectionString,
-            Dictionary<string, string> requests,
-            ILoggingService loggingService,
-            Func<DateTime> logDate)
+        public OrdersService(string connectionString, Dictionary<string, string> requests, ILoggingService loggingService)
         {
             _connectionString = connectionString;
             _requests = requests;
             _loggingService = loggingService;
-            _logDate = logDate();
         }
 
-        public async Task<ServiceResponseModel> GetAccountOrdersAsync(int accountId, string httpMethod, string endpoint, string queryParams, string requestId)
+        public async Task<ServiceResponseModel> GetAccountOrdersAsync(int accountId, TransferLogModel transfer)
         {
-            try
+            return await ExecuteDatabaseOperation(async (connection) =>
             {
-                await LogActionAsync("Request started", httpMethod, endpoint, queryParams, requestId);
+                var result = new List<AccountOrdersModel>();
 
-                var result = await ExecuteGetCommandAsync(
-                    query: _requests["GetAccountOrders"],
-                    parameterName: "@AccountId",
-                    parameterValue: accountId,
-                    readAction: reader => new AccountOrdersModel
-                    {
-                        OrderId = reader.GetInt32("OrderId"),
-                        OrderDate = reader.GetString("OrderDate"),
-                        AccountId = reader.GetInt32("AccountId"),
-                        PhoneNumber = reader.GetString("PhoneNumber"),
-                        Country = reader.GetString("Country"),
-                        Region = reader.GetString("Region"),
-                        District = reader.GetString("District"),
-                        City = reader.GetString("City"),
-                        Village = reader.GetString("Village"),
-                        Street = reader.GetString("Street"),
-                        HouseNumber = reader.GetString("HouseNumber"),
-                        ApartmentNumber = reader.GetString("ApartmentNumber"),
-                        OrderText = reader.GetString("OrderText"),
-                        DeliveryType = reader.GetString("DeliveryType"),
-                        OrderStatus = reader.GetString("OrderStatus")
-                    },
-                    notFoundMessage: "Orders not found.",
-                    successMessage: "Orders information successfully retrieved."
-                );
-
-                await LogActionAsync(result.Status ? "Request completed" : "Request failed",
-                    httpMethod, endpoint, queryParams, requestId);
-
-                return result;
-            }
-            catch (Exception ex)
-            {
-                await LogErrorAsync(ex, httpMethod, endpoint, queryParams, requestId);
-                return CreateErrorResponse($"Error: {ex.Message}");
-            }
-        }
-
-        public async Task<ServiceResponseModel> AddOrderAsync(OrderModel order, string httpMethod, string endpoint, string queryParams, string requestId)
-        {
-            try
-            {
-                await LogActionAsync("Add order started", httpMethod, endpoint, queryParams, requestId);
-
-                var result = await ExecuteAddCommandAsync(
-                    uniqueCheckQuery: _requests["OrderUniqueCheck"],
-                    addQuery: _requests["AddOrder"],
-                    uniqueParameter: new KeyValuePair<string, object>("@OrderId", order.OrderId),
-                    parameters: new Dictionary<string, object>
-                    {
-                        { "@OrderId", order.OrderId },
-                        { "@OrderDate", order.OrderDate },
-                        { "@AccountId", order.AccountId },
-                        { "@PhoneNumber", order.PhoneNumber },
-                        { "@Country", order.Country },
-                        { "@Region", order.Region },
-                        { "@District", order.District },
-                        { "@City", order.City },
-                        { "@Village", order.Village },
-                        { "@Street", order.Street },
-                        { "@HouseNumber", order.HouseNumber },
-                        { "@ApartmentNumber", order.ApartmentNumber },
-                        { "@OrderText", order.OrderText },
-                        { "@DeliveryType", order.DeliveryType }
-                    },
-                    name: "Order"
-                );
-
-                await LogActionAsync(result.Status ? "Order added" : "Add order failed",
-                    httpMethod, endpoint, queryParams, requestId);
-
-                return result;
-            }
-            catch (Exception ex)
-            {
-                await LogErrorAsync(ex, httpMethod, endpoint, queryParams, requestId);
-                return CreateErrorResponse($"Error adding order: {ex.Message}");
-            }
-        }
-
-        public async Task<ServiceResponseModel> AddQuestionAsync(QuestionModel question, string httpMethod, string endpoint, string queryParams, string requestId)
-        {
-            try
-            {
-                await LogActionAsync("Add question started", httpMethod, endpoint, queryParams, requestId);
-
-                var result = await ExecuteAddCommandAsync(
-                    uniqueCheckQuery: _requests["QuestionUniqueCheck"],
-                    addQuery: _requests["AddQuestion"],
-                    uniqueParameter: new KeyValuePair<string, object>("@QuestionId", question.QuestionId),
-                    parameters: new Dictionary<string, object>
-                    {
-                        { "@QuestionId", question.QuestionId },
-                        { "@QuestionDate", question.QuestionDate },
-                        { "@UserName", question.UserName },
-                        { "@PhoneNumber", question.PhoneNumber },
-                        { "@Email", question.Email },
-                        { "@QuestionText", question.QuestionText }
-                    },
-                    name: "Question"
-                );
-
-                await LogActionAsync(result.Status ? "Question added" : "Add question failed",
-                    httpMethod, endpoint, queryParams, requestId);
-
-                return result;
-            }
-            catch (Exception ex)
-            {
-                await LogErrorAsync(ex, httpMethod, endpoint, queryParams, requestId);
-                return CreateErrorResponse($"Error adding question: {ex.Message}");
-            }
-        }
-
-        private async Task<ServiceResponseModel> ExecuteGetCommandAsync<T>(
-            string query,
-            string parameterName,
-            object parameterValue,
-            Func<MySqlDataReader, T> readAction,
-            string notFoundMessage,
-            string successMessage)
-        {
-            if (parameterValue == null)
-            {
-                return CreateErrorResponse($"{parameterName} cannot be null.");
-            }
-
-            try
-            {
-                using (var connection = new MySqlConnection(_connectionString))
+                using (var command = new MySqlCommand(_requests["GetAccountOrders"], connection))
                 {
-                    await connection.OpenAsync();
+                    command.Parameters.AddWithValue("@AccountId", accountId);
 
-                    using (var command = new MySqlCommand(query, connection))
+                    using (var reader = await command.ExecuteReaderAsync())
                     {
-                        command.Parameters.AddWithValue(parameterName, parameterValue);
-
-                        using (var reader = await command.ExecuteReaderAsync())
+                        while (await reader.ReadAsync())
                         {
-                            var resultData = new List<T>();
-
-                            while (await reader.ReadAsync())
+                            result.Add(new AccountOrdersModel
                             {
-                                resultData.Add(readAction((MySqlDataReader)reader));
-                            }
-
-                            if (resultData.Count > 0)
-                            {
-                                return new ServiceResponseModel
-                                {
-                                    Status = true,
-                                    Message = successMessage,
-                                    Data = resultData
-                                };
-                            }
+                                OrderId = reader.GetInt32("OrderId"),
+                                OrderDate = reader.GetString("OrderDate"),
+                                AccountId = reader.GetInt32("AccountId"),
+                                PhoneNumber = reader.GetString("PhoneNumber"),
+                                Country = reader.GetString("Country"),
+                                Region = reader.GetString("Region"),
+                                District = reader.GetString("District"),
+                                City = reader.GetString("City"),
+                                Village = reader.GetString("Village"),
+                                Street = reader.GetString("Street"),
+                                HouseNumber = reader.GetString("HouseNumber"),
+                                ApartmentNumber = reader.GetString("ApartmentNumber"),
+                                OrderText = reader.GetString("OrderText"),
+                                DeliveryType = reader.GetString("DeliveryType"),
+                                OrderStatus = reader.GetString("OrderStatus")
+                            });
                         }
                     }
                 }
 
-                return CreateErrorResponse(notFoundMessage);
-            }
-            catch (MySqlException ex)
-            {
-                throw new Exception($"Database error: {ex.Message}");
-            }
-            catch (Exception ex)
-            {
-                throw new Exception($"Operation failed: {ex.Message}");
-            }
+                return result.Count > 0
+                    ? new ServiceResponseModel
+                    {
+                        Status = true,
+                        Message = "Orders information successfully retrieved.",
+                        Data = result
+                    }
+                    : CreateErrorResponse("Orders not found.");
+            }, "Get account orders", transfer);
         }
 
-        private async Task<ServiceResponseModel> ExecuteAddCommandAsync(
-            string uniqueCheckQuery,
-            string addQuery,
-            KeyValuePair<string, object> uniqueParameter,
-            Dictionary<string, object> parameters,
-            string name)
+        public async Task<ServiceResponseModel> AddOrderAsync(OrderModel order, TransferLogModel transfer)
         {
-            try
+            return await ExecuteDatabaseOperation(async (connection) =>
             {
-                using (var connection = new MySqlConnection(_connectionString))
+                using (var checkCommand = new MySqlCommand(_requests["OrderUniqueCheck"], connection))
                 {
-                    await connection.OpenAsync();
-
-                    using (var checkCommand = new MySqlCommand(uniqueCheckQuery, connection))
+                    checkCommand.Parameters.AddWithValue("@OrderId", order.OrderId);
+                    if (Convert.ToInt32(await checkCommand.ExecuteScalarAsync()) > 0)
                     {
-                        checkCommand.Parameters.AddWithValue(uniqueParameter.Key, uniqueParameter.Value);
-
-                        var exists = Convert.ToInt32(await checkCommand.ExecuteScalarAsync()) > 0;
-
-                        if (exists)
-                        {
-                            return CreateErrorResponse($"{name} with this ID already exists");
-                        }
+                        return CreateErrorResponse("Order with this ID already exists");
                     }
+                }
 
-                    using (var command = new MySqlCommand(addQuery, connection))
-                    {
-                        foreach (var parameter in parameters)
-                        {
-                            command.Parameters.AddWithValue(parameter.Key, parameter.Value);
-                        }
+                using (var command = new MySqlCommand(_requests["AddOrder"], connection))
+                {
+                    command.Parameters.AddWithValue("@OrderId", order.OrderId);
+                    command.Parameters.AddWithValue("@OrderDate", order.OrderDate);
+                    command.Parameters.AddWithValue("@AccountId", order.AccountId);
+                    command.Parameters.AddWithValue("@PhoneNumber", order.PhoneNumber);
+                    command.Parameters.AddWithValue("@Country", order.Country);
+                    command.Parameters.AddWithValue("@Region", order.Region);
+                    command.Parameters.AddWithValue("@District", order.District);
+                    command.Parameters.AddWithValue("@City", order.City);
+                    command.Parameters.AddWithValue("@Village", order.Village);
+                    command.Parameters.AddWithValue("@Street", order.Street);
+                    command.Parameters.AddWithValue("@HouseNumber", order.HouseNumber);
+                    command.Parameters.AddWithValue("@ApartmentNumber", order.ApartmentNumber);
+                    command.Parameters.AddWithValue("@OrderText", order.OrderText);
+                    command.Parameters.AddWithValue("@DeliveryType", order.DeliveryType);
 
-                        await command.ExecuteNonQueryAsync();
-                    }
+                    await command.ExecuteNonQueryAsync();
                 }
 
                 return new ServiceResponseModel
                 {
                     Status = true,
-                    Message = $"{name} successfully added."
+                    Message = "Order successfully added."
                 };
-            }
-            catch (MySqlException ex)
+            }, "Add order", transfer);
+        }
+
+        public async Task<ServiceResponseModel> AddQuestionAsync(QuestionModel question, TransferLogModel transfer)
+        {
+            return await ExecuteDatabaseOperation(async (connection) =>
             {
-                throw new Exception($"Database error: {ex.Message}");
+                using (var checkCommand = new MySqlCommand(_requests["QuestionUniqueCheck"], connection))
+                {
+                    checkCommand.Parameters.AddWithValue("@QuestionId", question.QuestionId);
+                    if (Convert.ToInt32(await checkCommand.ExecuteScalarAsync()) > 0)
+                    {
+                        return CreateErrorResponse("Question with this ID already exists");
+                    }
+                }
+
+                using (var command = new MySqlCommand(_requests["AddQuestion"], connection))
+                {
+                    command.Parameters.AddWithValue("@QuestionId", question.QuestionId);
+                    command.Parameters.AddWithValue("@QuestionDate", question.QuestionDate);
+                    command.Parameters.AddWithValue("@UserName", question.UserName);
+                    command.Parameters.AddWithValue("@PhoneNumber", question.PhoneNumber);
+                    command.Parameters.AddWithValue("@Email", question.Email);
+                    command.Parameters.AddWithValue("@QuestionText", question.QuestionText);
+
+                    await command.ExecuteNonQueryAsync();
+                }
+
+                return new ServiceResponseModel
+                {
+                    Status = true,
+                    Message = "Question successfully added."
+                };
+            }, "Add question", transfer);
+        }
+
+        private async Task<ServiceResponseModel> ExecuteDatabaseOperation(Func<MySqlConnection, Task<ServiceResponseModel>> operation, string operationName, TransferLogModel transfer)
+        {
+            try
+            {
+                await LogActionAsync($"{operationName} started", transfer);
+
+                using (var connection = new MySqlConnection(_connectionString))
+                {
+                    await connection.OpenAsync();
+                    var result = await operation(connection);
+
+                    await LogActionAsync(
+                        result.Status
+                            ? $"{operationName} completed"
+                            : $"{operationName} failed: {result.Message}",
+                        transfer);
+
+                    return result;
+                }
             }
             catch (Exception ex)
             {
-                throw new Exception($"Operation failed: {ex.Message}");
+                await LogErrorAsync(ex, transfer);
+                return CreateErrorResponse($"Error during {operationName.ToLower()}: {ex.Message}");
             }
         }
 
-        private async Task LogActionAsync(
-            string status,
-            string httpMethod,
-            string endpoint,
-            string queryParams,
-            string requestId)
+        private async Task LogActionAsync(string status, TransferLogModel transfer)
         {
             try
             {
                 await _loggingService.AddLogAsync(new LogModel
                 {
-                    Date = _logDate,
-                    HttpMethod = httpMethod,
-                    Endpoint = endpoint,
-                    QueryParams = queryParams,
+                    Date = DateTime.UtcNow,
+                    HttpMethod = transfer.HttpMethod,
+                    Endpoint = transfer.Endpoint,
+                    QueryParams = transfer.QueryParams,
                     Status = status,
-                    RequestId = requestId
+                    RequestId = transfer.RequestId
                 });
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Logging failed: {ex.Message}");
+                Console.WriteLine($"Failed to log action: {ex.Message}");
             }
         }
 
-        private async Task LogErrorAsync(
-            Exception ex,
-            string httpMethod,
-            string endpoint,
-            string queryParams,
-            string requestId)
+        private async Task LogErrorAsync(Exception ex, TransferLogModel transfer)
         {
-            await LogActionAsync($"ERROR: {ex.GetType().Name} - {ex.Message}",
-                httpMethod, endpoint, queryParams, requestId);
+            await LogActionAsync($"ERROR: {ex.GetType().Name} - {ex.Message}", transfer);
         }
 
         private ServiceResponseModel CreateErrorResponse(string message)
@@ -295,8 +198,7 @@ namespace FurniroomAPI.Services
             return new ServiceResponseModel
             {
                 Status = false,
-                Message = message,
-                Data = null
+                Message = message
             };
         }
     }

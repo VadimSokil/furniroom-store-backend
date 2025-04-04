@@ -3,6 +3,7 @@ using FurniroomAPI.Models.Account;
 using FurniroomAPI.Models.Log;
 using FurniroomAPI.Models.Response;
 using MySql.Data.MySqlClient;
+using System.Data;
 
 namespace FurniroomAPI.Services
 {
@@ -11,382 +12,222 @@ namespace FurniroomAPI.Services
         private readonly string _connectionString;
         private readonly Dictionary<string, string> _requests;
         private readonly ILoggingService _loggingService;
-        private readonly DateTime _logDate;
 
-        public AccountService(
-            string connectionString,
-            Dictionary<string, string> requests,
-            ILoggingService loggingService,
-            Func<DateTime> logDate)
+        public AccountService(string connectionString, Dictionary<string, string> requests, ILoggingService loggingService)
         {
             _connectionString = connectionString;
             _requests = requests;
             _loggingService = loggingService;
-            _logDate = logDate();
         }
 
-        public async Task<ServiceResponseModel> GetAccountInformationAsync(
-            int accountId,
-            string httpMethod,
-            string endpoint,
-            string queryParams,
-            string requestId)
+        public async Task<ServiceResponseModel> GetAccountInformationAsync(int accountId, TransferLogModel transfer)
         {
-            try
+            return await ExecuteDatabaseOperation(async (connection) =>
             {
-                await LogActionAsync("Get account info started", httpMethod, endpoint, queryParams, requestId);
-
-                var result = await ExecuteGetCommandAsync(
-                    query: _requests["GetAccountInformation"],
-                    parameterName: "@AccountId",
-                    parameterValue: accountId,
-                    readAction: reader => new AccountInformationModel
-                    {
-                        AccountName = reader.GetString("AccountName"),
-                        Email = reader.GetString("Email")
-                    },
-                    notFoundMessage: "Account not found.",
-                    successMessage: "Account information successfully retrieved.",
-                    httpMethod,
-                    endpoint,
-                    queryParams,
-                    requestId
-                );
-
-                await LogActionAsync(result.Status ? "Get account info completed" : "Account not found",
-                    httpMethod, endpoint, queryParams, requestId);
-
-                return result;
-            }
-            catch (Exception ex)
-            {
-                await LogErrorAsync(ex, httpMethod, endpoint, queryParams, requestId);
-                return CreateErrorResponse($"Error getting account info: {ex.Message}");
-            }
-        }
-
-        public async Task<ServiceResponseModel> ChangeNameAsync(
-            ChangeNameModel changeName,
-            string httpMethod,
-            string endpoint,
-            string queryParams,
-            string requestId)
-        {
-            try
-            {
-                await LogActionAsync("Change name started", httpMethod, endpoint, queryParams, requestId);
-
-                var result = await ExecuteChangeCommandAsync(
-                    checkOldValueQuery: _requests["CheckOldAccountName"],
-                    checkNewValueQuery: _requests["CheckNewAccountName"],
-                    updateQuery: _requests["ChangeAccountName"],
-                    parameters: new Dictionary<string, object>
-                    {
-                        { "@OldName", changeName.OldName },
-                        { "@NewName", changeName.NewName }
-                    },
-                    checkMessage: "Old name not found.",
-                    existsMessage: "New name is already in use.",
-                    successMessage: "Name successfully changed.",
-                    httpMethod,
-                    endpoint,
-                    queryParams,
-                    requestId
-                );
-
-                await LogActionAsync(result.Status ? "Name changed" : "Failed to change name",
-                    httpMethod, endpoint, queryParams, requestId);
-
-                return result;
-            }
-            catch (Exception ex)
-            {
-                await LogErrorAsync(ex, httpMethod, endpoint, queryParams, requestId);
-                return CreateErrorResponse($"Error changing name: {ex.Message}");
-            }
-        }
-
-        public async Task<ServiceResponseModel> ChangeEmailAsync(
-            ChangeEmailModel changeEmail,
-            string httpMethod,
-            string endpoint,
-            string queryParams,
-            string requestId)
-        {
-            try
-            {
-                await LogActionAsync("Change email started", httpMethod, endpoint, queryParams, requestId);
-
-                var result = await ExecuteChangeCommandAsync(
-                    checkOldValueQuery: _requests["CheckOldEmail"],
-                    checkNewValueQuery: _requests["CheckNewEmail"],
-                    updateQuery: _requests["ChangeEmail"],
-                    parameters: new Dictionary<string, object>
-                    {
-                        { "@OldEmail", changeEmail.OldEmail },
-                        { "@NewEmail", changeEmail.NewEmail }
-                    },
-                    checkMessage: "Old email not found.",
-                    existsMessage: "New email is already in use.",
-                    successMessage: "Email successfully changed.",
-                    httpMethod,
-                    endpoint,
-                    queryParams,
-                    requestId
-                );
-
-                await LogActionAsync(result.Status ? "Email changed" : "Failed to change email",
-                    httpMethod, endpoint, queryParams, requestId);
-
-                return result;
-            }
-            catch (Exception ex)
-            {
-                await LogErrorAsync(ex, httpMethod, endpoint, queryParams, requestId);
-                return CreateErrorResponse($"Error changing email: {ex.Message}");
-            }
-        }
-
-        public async Task<ServiceResponseModel> ChangePasswordAsync(
-            ChangePasswordModel changePassword,
-            string httpMethod,
-            string endpoint,
-            string queryParams,
-            string requestId)
-        {
-            try
-            {
-                await LogActionAsync("Change password started", httpMethod, endpoint, queryParams, requestId);
-
-                using (var connection = new MySqlConnection(_connectionString))
+                using (var command = new MySqlCommand(_requests["GetAccountInformation"], connection))
                 {
-                    await connection.OpenAsync();
+                    command.Parameters.AddWithValue("@AccountId", accountId);
 
-                    using (var command = new MySqlCommand(_requests["ChangePassword"], connection))
+                    using (var reader = await command.ExecuteReaderAsync())
                     {
-                        command.Parameters.AddWithValue("@OldPasswordHash", changePassword.OldPasswordHash);
-                        command.Parameters.AddWithValue("@NewPasswordHash", changePassword.NewPasswordHash);
-
-                        int affectedRows = await command.ExecuteNonQueryAsync();
-                        if (affectedRows > 0)
+                        if (await reader.ReadAsync())
                         {
-                            await LogActionAsync("Password changed", httpMethod, endpoint, queryParams, requestId);
                             return new ServiceResponseModel
                             {
                                 Status = true,
-                                Message = "Password successfully changed."
-                            };
-                        }
-                        else
-                        {
-                            await LogActionAsync("Old password not found", httpMethod, endpoint, queryParams, requestId);
-                            return CreateErrorResponse("Old password not found.");
-                        }
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                await LogErrorAsync(ex, httpMethod, endpoint, queryParams, requestId);
-                return CreateErrorResponse($"Error changing password: {ex.Message}");
-            }
-        }
-
-        public async Task<ServiceResponseModel> DeleteAccountAsync(
-            int accountId,
-            string httpMethod,
-            string endpoint,
-            string queryParams,
-            string requestId)
-        {
-            try
-            {
-                await LogActionAsync("Delete account started", httpMethod, endpoint, queryParams, requestId);
-
-                using (var connection = new MySqlConnection(_connectionString))
-                {
-                    await connection.OpenAsync();
-
-                    using (var deleteOrdersCommand = new MySqlCommand(_requests["DeleteOrders"], connection))
-                    {
-                        deleteOrdersCommand.Parameters.AddWithValue("@AccountId", accountId);
-                        await deleteOrdersCommand.ExecuteNonQueryAsync();
-                    }
-
-                    using (var deleteAccountCommand = new MySqlCommand(_requests["DeleteAccount"], connection))
-                    {
-                        deleteAccountCommand.Parameters.AddWithValue("@AccountId", accountId);
-
-                        int affectedRows = await deleteAccountCommand.ExecuteNonQueryAsync();
-                        if (affectedRows > 0)
-                        {
-                            await LogActionAsync("Account deleted", httpMethod, endpoint, queryParams, requestId);
-                            return new ServiceResponseModel
-                            {
-                                Status = true,
-                                Message = "Account and orders successfully deleted."
-                            };
-                        }
-                        else
-                        {
-                            await LogActionAsync("Account not found", httpMethod, endpoint, queryParams, requestId);
-                            return CreateErrorResponse("Account not found.");
-                        }
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                await LogErrorAsync(ex, httpMethod, endpoint, queryParams, requestId);
-                return CreateErrorResponse($"Error deleting account: {ex.Message}");
-            }
-        }
-
-        private async Task<ServiceResponseModel> ExecuteGetCommandAsync<T>(
-            string query,
-            string parameterName,
-            object parameterValue,
-            Func<MySqlDataReader, T> readAction,
-            string notFoundMessage,
-            string successMessage,
-            string httpMethod,
-            string endpoint,
-            string queryParams,
-            string requestId)
-        {
-            if (parameterValue == null)
-            {
-                await LogActionAsync($"{parameterName} is null", httpMethod, endpoint, queryParams, requestId);
-                return CreateErrorResponse($"{parameterName} cannot be null.");
-            }
-
-            try
-            {
-                using (var connection = new MySqlConnection(_connectionString))
-                {
-                    await connection.OpenAsync();
-
-                    using (var command = new MySqlCommand(query, connection))
-                    {
-                        command.Parameters.AddWithValue(parameterName, parameterValue);
-
-                        using (var reader = await command.ExecuteReaderAsync())
-                        {
-                            if (await reader.ReadAsync())
-                            {
-                                var resultData = readAction((MySqlDataReader)reader);
-                                return new ServiceResponseModel
+                                Message = "Account information successfully retrieved.",
+                                Data = new AccountInformationModel
                                 {
-                                    Status = true,
-                                    Message = successMessage,
-                                    Data = resultData
-                                };
+                                    AccountName = reader.GetString("AccountName"),
+                                    Email = reader.GetString("Email")
+                                }
+                            };
+                        }
+                    }
+                }
+                return CreateErrorResponse("Account not found.");
+            }, "Get account information", transfer);
+        }
+
+        public async Task<ServiceResponseModel> ChangeNameAsync(ChangeNameModel changeName, TransferLogModel transfer)
+        {
+            return await ExecuteDatabaseOperation(async (connection) =>
+            {
+                using (var checkCommand = new MySqlCommand(_requests["CheckOldAccountName"], connection))
+                {
+                    checkCommand.Parameters.AddWithValue("@OldName", changeName.OldName);
+                    if (Convert.ToInt32(await checkCommand.ExecuteScalarAsync()) == 0)
+                    {
+                        return CreateErrorResponse("Old name not found.");
+                    }
+                }
+
+                using (var checkCommand = new MySqlCommand(_requests["CheckNewAccountName"], connection))
+                {
+                    checkCommand.Parameters.AddWithValue("@NewName", changeName.NewName);
+                    if (Convert.ToInt32(await checkCommand.ExecuteScalarAsync()) > 0)
+                    {
+                        return CreateErrorResponse("New name is already in use.");
+                    }
+                }
+
+                using (var command = new MySqlCommand(_requests["ChangeAccountName"], connection))
+                {
+                    command.Parameters.AddWithValue("@OldName", changeName.OldName);
+                    command.Parameters.AddWithValue("@NewName", changeName.NewName);
+                    await command.ExecuteNonQueryAsync();
+                }
+
+                return new ServiceResponseModel
+                {
+                    Status = true,
+                    Message = "Name successfully changed."
+                };
+            }, "Change account name", transfer);
+        }
+
+        public async Task<ServiceResponseModel> ChangeEmailAsync(ChangeEmailModel changeEmail, TransferLogModel transfer)
+        {
+            return await ExecuteDatabaseOperation(async (connection) =>
+            {
+                using (var checkCommand = new MySqlCommand(_requests["CheckOldEmail"], connection))
+                {
+                    checkCommand.Parameters.AddWithValue("@OldEmail", changeEmail.OldEmail);
+                    if (Convert.ToInt32(await checkCommand.ExecuteScalarAsync()) == 0)
+                    {
+                        return CreateErrorResponse("Old email not found.");
+                    }
+                }
+
+                using (var checkCommand = new MySqlCommand(_requests["CheckNewEmail"], connection))
+                {
+                    checkCommand.Parameters.AddWithValue("@NewEmail", changeEmail.NewEmail);
+                    if (Convert.ToInt32(await checkCommand.ExecuteScalarAsync()) > 0)
+                    {
+                        return CreateErrorResponse("New email is already in use.");
+                    }
+                }
+
+                using (var command = new MySqlCommand(_requests["ChangeEmail"], connection))
+                {
+                    command.Parameters.AddWithValue("@OldEmail", changeEmail.OldEmail);
+                    command.Parameters.AddWithValue("@NewEmail", changeEmail.NewEmail);
+                    await command.ExecuteNonQueryAsync();
+                }
+
+                return new ServiceResponseModel
+                {
+                    Status = true,
+                    Message = "Email successfully changed."
+                };
+            }, "Change account email", transfer);
+        }
+
+        public async Task<ServiceResponseModel> ChangePasswordAsync(ChangePasswordModel changePassword, TransferLogModel transfer)
+        {
+            return await ExecuteDatabaseOperation(async (connection) =>
+            {
+                using (var command = new MySqlCommand(_requests["ChangePassword"], connection))
+                {
+                    command.Parameters.AddWithValue("@OldPasswordHash", changePassword.OldPasswordHash);
+                    command.Parameters.AddWithValue("@NewPasswordHash", changePassword.NewPasswordHash);
+
+                    int affectedRows = await command.ExecuteNonQueryAsync();
+                    if (affectedRows == 0)
+                    {
+                        return CreateErrorResponse("Old password not found.");
+                    }
+                }
+
+                return new ServiceResponseModel
+                {
+                    Status = true,
+                    Message = "Password successfully changed."
+                };
+            }, "Change account password", transfer);
+        }
+
+        public async Task<ServiceResponseModel> DeleteAccountAsync(int accountId, TransferLogModel transfer)
+        {
+            return await ExecuteDatabaseOperation(async (connection) =>
+            {
+                using (var transaction = await connection.BeginTransactionAsync())
+                {
+                    try
+                    {
+                        using (var deleteOrdersCommand = new MySqlCommand(_requests["DeleteOrders"], connection, transaction))
+                        {
+                            deleteOrdersCommand.Parameters.AddWithValue("@AccountId", accountId);
+                            await deleteOrdersCommand.ExecuteNonQueryAsync();
+                        }
+
+                        using (var deleteAccountCommand = new MySqlCommand(_requests["DeleteAccount"], connection, transaction))
+                        {
+                            deleteAccountCommand.Parameters.AddWithValue("@AccountId", accountId);
+                            int affectedRows = await deleteAccountCommand.ExecuteNonQueryAsync();
+
+                            if (affectedRows == 0)
+                            {
+                                await transaction.RollbackAsync();
+                                return CreateErrorResponse("Account not found.");
                             }
                         }
+
+                        await transaction.CommitAsync();
+                        return new ServiceResponseModel
+                        {
+                            Status = true,
+                            Message = "Account and orders successfully deleted."
+                        };
+                    }
+                    catch
+                    {
+                        await transaction.RollbackAsync();
+                        throw;
                     }
                 }
-
-                await LogActionAsync(notFoundMessage, httpMethod, endpoint, queryParams, requestId);
-                return CreateErrorResponse(notFoundMessage);
-            }
-            catch (Exception ex)
-            {
-                await LogErrorAsync(ex, httpMethod, endpoint, queryParams, requestId);
-                throw;
-            }
+            }, "Delete account", transfer);
         }
 
-        private async Task<ServiceResponseModel> ExecuteChangeCommandAsync(
-            string checkOldValueQuery,
-            string checkNewValueQuery,
-            string updateQuery,
-            Dictionary<string, object> parameters,
-            string checkMessage,
-            string existsMessage,
-            string successMessage,
-            string httpMethod,
-            string endpoint,
-            string queryParams,
-            string requestId)
+        private async Task<ServiceResponseModel> ExecuteDatabaseOperation(Func<MySqlConnection, Task<ServiceResponseModel>> operation, string operationName, TransferLogModel transfer)
         {
             try
             {
+                await LogActionAsync($"{operationName} started", transfer);
+
                 using (var connection = new MySqlConnection(_connectionString))
                 {
                     await connection.OpenAsync();
+                    var result = await operation(connection);
 
-                    using (var checkOldValueCommand = new MySqlCommand(checkOldValueQuery, connection))
-                    {
-                        checkOldValueCommand.Parameters.AddWithValue("@OldName", parameters.ContainsKey("@OldName") ? parameters["@OldName"] : DBNull.Value);
-                        checkOldValueCommand.Parameters.AddWithValue("@OldEmail", parameters.ContainsKey("@OldEmail") ? parameters["@OldEmail"] : DBNull.Value);
+                    await LogActionAsync(
+                        result.Status
+                            ? $"{operationName} completed"
+                            : $"{operationName} failed: {result.Message}",
+                        transfer);
 
-                        var oldValueExists = Convert.ToInt32(await checkOldValueCommand.ExecuteScalarAsync()) > 0;
-
-                        if (!oldValueExists)
-                        {
-                            await LogActionAsync(checkMessage, httpMethod, endpoint, queryParams, requestId);
-                            return CreateErrorResponse(checkMessage);
-                        }
-                    }
-
-                    using (var checkNewValueCommand = new MySqlCommand(checkNewValueQuery, connection))
-                    {
-                        checkNewValueCommand.Parameters.AddWithValue("@NewName", parameters.ContainsKey("@NewName") ? parameters["@NewName"] : DBNull.Value);
-                        checkNewValueCommand.Parameters.AddWithValue("@NewEmail", parameters.ContainsKey("@NewEmail") ? parameters["@NewEmail"] : DBNull.Value);
-
-                        var newValueExists = Convert.ToInt32(await checkNewValueCommand.ExecuteScalarAsync()) > 0;
-
-                        if (newValueExists &&
-                            ((parameters.ContainsKey("@OldName") && parameters["@OldName"].ToString() != parameters["@NewName"].ToString()) ||
-                             (parameters.ContainsKey("@OldEmail") && parameters["@OldEmail"].ToString() != parameters["@NewEmail"].ToString())))
-                        {
-                            await LogActionAsync(existsMessage, httpMethod, endpoint, queryParams, requestId);
-                            return CreateErrorResponse(existsMessage);
-                        }
-                    }
-
-                    using (var updateCommand = new MySqlCommand(updateQuery, connection))
-                    {
-                        foreach (var parameter in parameters)
-                        {
-                            updateCommand.Parameters.AddWithValue(parameter.Key, parameter.Value ?? DBNull.Value);
-                        }
-
-                        await updateCommand.ExecuteNonQueryAsync();
-                    }
-
-                    await LogActionAsync(successMessage, httpMethod, endpoint, queryParams, requestId);
-                    return new ServiceResponseModel
-                    {
-                        Status = true,
-                        Message = successMessage
-                    };
+                    return result;
                 }
             }
             catch (Exception ex)
             {
-                await LogErrorAsync(ex, httpMethod, endpoint, queryParams, requestId);
-                throw;
+                await LogErrorAsync(ex, transfer);
+                return CreateErrorResponse($"Error during {operationName.ToLower()}: {ex.Message}");
             }
         }
 
-        private async Task LogActionAsync(
-            string status,
-            string httpMethod,
-            string endpoint,
-            string queryParams,
-            string requestId)
+        private async Task LogActionAsync(string status, TransferLogModel transfer)
         {
             try
             {
                 await _loggingService.AddLogAsync(new LogModel
                 {
-                    Date = _logDate,
-                    HttpMethod = httpMethod,
-                    Endpoint = endpoint,
-                    QueryParams = queryParams,
+                    Date = DateTime.UtcNow,
+                    HttpMethod = transfer.HttpMethod,
+                    Endpoint = transfer.Endpoint,
+                    QueryParams = transfer.QueryParams,
                     Status = status,
-                    RequestId = requestId
+                    RequestId = transfer.RequestId
                 });
             }
             catch (Exception ex)
@@ -395,15 +236,9 @@ namespace FurniroomAPI.Services
             }
         }
 
-        private async Task LogErrorAsync(
-            Exception ex,
-            string httpMethod,
-            string endpoint,
-            string queryParams,
-            string requestId)
+        private async Task LogErrorAsync(Exception ex, TransferLogModel transfer)
         {
-            await LogActionAsync($"ERROR: {ex.GetType().Name} - {ex.Message}",
-                httpMethod, endpoint, queryParams, requestId);
+            await LogActionAsync($"ERROR: {ex.GetType().Name} - {ex.Message}", transfer);
         }
 
         private ServiceResponseModel CreateErrorResponse(string message)

@@ -1,14 +1,15 @@
-﻿using FurniroomAPI.Models;
+﻿using FurniroomAPI.Models.Authorization;
 using FurniroomAPI.Models.Response;
+using FurniroomAPI.Models.Log;
 
 namespace FurniroomAPI.Interfaces
 {
     public interface IAuthorizationService
     {
-        public Task<ServiceResponseModel> CheckEmailAsync(string email, string httpMethod, string endpoint, string queryParams, string requestId);
-        public Task<ServiceResponseModel> GenerateCodeAsync(string email, string httpMethod, string endpoint, string queryParams, string requestId);
-        public Task<ServiceResponseModel> ResetPasswordAsync(string email, string httpMethod, string endpoint, string queryParams, string requestId);
-        public Task<ServiceResponseModel> SignUpAsync(SignUpModel signUp, string httpMethod, string endpoint, string queryParams, string requestId);
-        public Task<ServiceResponseModel> SignInAsync(SignInModel signIn, string httpMethod, string endpoint, string queryParams, string requestId);
+        public Task<ServiceResponseModel> CheckEmailAsync(string email, TransferLogModel transfer);
+        public Task<ServiceResponseModel> GenerateCodeAsync(string email, TransferLogModel transfer);
+        public Task<ServiceResponseModel> ResetPasswordAsync(string email, TransferLogModel transfer);
+        public Task<ServiceResponseModel> SignUpAsync(SignUpModel signUp, TransferLogModel transfer);
+        public Task<ServiceResponseModel> SignInAsync(SignInModel signIn, TransferLogModel transfer);
     }
 }

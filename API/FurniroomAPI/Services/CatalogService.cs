@@ -11,25 +11,15 @@ namespace FurniroomAPI.Services
         private readonly string _connectionString;
         private readonly Dictionary<string, string> _requests;
         private readonly ILoggingService _loggingService;
-        private readonly DateTime _logDate;
 
-        public CatalogService(
-            string connectionString,
-            Dictionary<string, string> requests,
-            ILoggingService loggingService,
-            Func<DateTime> logDate)
+        public CatalogService(string connectionString,Dictionary<string, string> requests, ILoggingService loggingService)
         {
             _connectionString = connectionString;
             _requests = requests;
             _loggingService = loggingService;
-            _logDate = logDate();
         }
 
-        public async Task<ServiceResponseModel> GetAllCategoriesAsync(
-            string httpMethod,
-            string endpoint,
-            string queryParams,
-            string requestId)
+        public async Task<ServiceResponseModel> GetAllCategoriesAsync(TransferLogModel transfer)
         {
             return await GetInformationAsync<CategoryModel>(
                 "GetAllCategories",
@@ -38,18 +28,10 @@ namespace FurniroomAPI.Services
                     CategoryId = reader.GetInt32("CategoryId"),
                     CategoryName = reader.GetString("CategoryName")
                 },
-                httpMethod,
-                endpoint,
-                queryParams,
-                requestId
-            );
+                transfer);
         }
 
-        public async Task<ServiceResponseModel> GetAllSubcategoriesAsync(
-            string httpMethod,
-            string endpoint,
-            string queryParams,
-            string requestId)
+        public async Task<ServiceResponseModel> GetAllSubcategoriesAsync(TransferLogModel transfer)
         {
             return await GetInformationAsync<SubcategoryModel>(
                 "GetAllSubcategories",
@@ -59,18 +41,10 @@ namespace FurniroomAPI.Services
                     CategoryId = reader.GetInt32("CategoryId"),
                     SubcategoryName = reader.GetString("SubcategoryName")
                 },
-                httpMethod,
-                endpoint,
-                queryParams,
-                requestId
-            );
+                transfer);
         }
 
-        public async Task<ServiceResponseModel> GetAllSetsAsync(
-            string httpMethod,
-            string endpoint,
-            string queryParams,
-            string requestId)
+        public async Task<ServiceResponseModel> GetAllSetsAsync(TransferLogModel transfer)
         {
             return await GetInformationAsync<SetModel>(
                 "GetAllSets",
@@ -82,18 +56,10 @@ namespace FurniroomAPI.Services
                     SetDescription = reader.GetString("SetDescription"),
                     SetImageUrl = reader.GetString("SetImageUrl")
                 },
-                httpMethod,
-                endpoint,
-                queryParams,
-                requestId
-            );
+                transfer);
         }
 
-        public async Task<ServiceResponseModel> GetAllImagesAsync(
-            string httpMethod,
-            string endpoint,
-            string queryParams,
-            string requestId)
+        public async Task<ServiceResponseModel> GetAllImagesAsync(TransferLogModel transfer)
         {
             return await GetInformationAsync<ImageModel>(
                 "GetAllImages",
@@ -103,18 +69,10 @@ namespace FurniroomAPI.Services
                     ProductId = reader.GetInt32("ProductId"),
                     ImageUrl = reader.GetString("ImageUrl")
                 },
-                httpMethod,
-                endpoint,
-                queryParams,
-                requestId
-            );
+                transfer);
         }
 
-        public async Task<ServiceResponseModel> GetAllModulesAsync(
-            string httpMethod,
-            string endpoint,
-            string queryParams,
-            string requestId)
+        public async Task<ServiceResponseModel> GetAllModulesAsync(TransferLogModel transfer)
         {
             return await GetInformationAsync<ModuleModel>(
                 "GetAllModules",
@@ -126,24 +84,14 @@ namespace FurniroomAPI.Services
                     ModuleDescription = reader.GetString("ModuleDescription"),
                     ModuleImageUrl = reader.GetString("ModuleImageUrl")
                 },
-                httpMethod,
-                endpoint,
-                queryParams,
-                requestId
-            );
+                transfer);
         }
 
-        private async Task<ServiceResponseModel> GetInformationAsync<T>(
-            string requestKey,
-            Func<MySqlDataReader, T> mapFunc,
-            string httpMethod,
-            string endpoint,
-            string queryParams,
-            string requestId)
+        private async Task<ServiceResponseModel> GetInformationAsync<T>(string requestKey, Func<MySqlDataReader, T> mapFunc, TransferLogModel transfer)
         {
             try
             {
-                await LogActionAsync("Request started", httpMethod, endpoint, queryParams, requestId);
+                await LogActionAsync($"{requestKey} started", transfer);
 
                 var items = new List<T>();
 
@@ -163,7 +111,7 @@ namespace FurniroomAPI.Services
                     }
                 }
 
-                await LogActionAsync("Request completed successfully", httpMethod, endpoint, queryParams, requestId);
+                await LogActionAsync($"{requestKey} completed successfully", transfer);
 
                 return new ServiceResponseModel
                 {
@@ -174,33 +122,28 @@ namespace FurniroomAPI.Services
             }
             catch (MySqlException ex)
             {
-                await LogErrorAsync(ex, httpMethod, endpoint, queryParams, requestId);
+                await LogErrorAsync(ex, transfer);
                 return CreateErrorResponse($"Database error: {ex.Message}");
             }
             catch (Exception ex)
             {
-                await LogErrorAsync(ex, httpMethod, endpoint, queryParams, requestId);
+                await LogErrorAsync(ex, transfer);
                 return CreateErrorResponse($"Unexpected error: {ex.Message}");
             }
         }
 
-        private async Task LogActionAsync(
-            string status,
-            string httpMethod,
-            string endpoint,
-            string queryParams,
-            string requestId)
+        private async Task LogActionAsync(string status, TransferLogModel transfer)
         {
             try
             {
                 await _loggingService.AddLogAsync(new LogModel
                 {
-                    Date = _logDate,
-                    HttpMethod = httpMethod,
-                    Endpoint = endpoint,
-                    QueryParams = queryParams,
+                    Date = DateTime.UtcNow,
+                    HttpMethod = transfer.HttpMethod,
+                    Endpoint = transfer.Endpoint,
+                    QueryParams = transfer.QueryParams,
                     Status = status,
-                    RequestId = requestId
+                    RequestId = transfer.RequestId
                 });
             }
             catch (Exception ex)
@@ -209,15 +152,9 @@ namespace FurniroomAPI.Services
             }
         }
 
-        private async Task LogErrorAsync(
-            Exception ex,
-            string httpMethod,
-            string endpoint,
-            string queryParams,
-            string requestId)
+        private async Task LogErrorAsync(Exception ex, TransferLogModel transfer)
         {
-            await LogActionAsync($"ERROR: {ex.GetType().Name} - {ex.Message}",
-                httpMethod, endpoint, queryParams, requestId);
+            await LogActionAsync($"ERROR: {ex.GetType().Name} - {ex.Message}", transfer);
         }
 
         private ServiceResponseModel CreateErrorResponse(string message)
@@ -225,8 +162,7 @@ namespace FurniroomAPI.Services
             return new ServiceResponseModel
             {
                 Status = false,
-                Message = message,
-                Data = null
+                Message = message
             };
         }
     }

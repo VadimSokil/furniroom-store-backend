@@ -1,5 +1,5 @@
 ﻿using FurniroomAPI.Interfaces;
-using FurniroomAPI.Models;
+using FurniroomAPI.Models.Authorization;
 using FurniroomAPI.Models.Log;
 using FurniroomAPI.Models.Response;
 using MySql.Data.MySqlClient;
@@ -18,12 +18,7 @@ namespace FurniroomAPI.Services
         private const int SmtpPort = 587;
         private readonly ILoggingService _loggingService;
 
-        public AuthorizationService(
-            string connectionString,
-            string serviceEmail,
-            string servicePassword,
-            Dictionary<string, string> requests,
-            ILoggingService loggingService)
+        public AuthorizationService(string connectionString, string serviceEmail, string servicePassword, Dictionary<string, string> requests, ILoggingService loggingService)
         {
             _connectionString = connectionString;
             _serviceEmail = serviceEmail;
@@ -32,7 +27,7 @@ namespace FurniroomAPI.Services
             _loggingService = loggingService;
         }
 
-        public async Task<ServiceResponseModel> CheckEmailAsync(string email, string httpMethod, string endpoint, string queryParams, string requestId)
+        public async Task<ServiceResponseModel> CheckEmailAsync(string email, TransferLogModel transfer)
         {
             return await ExecuteDatabaseOperation(async (connection) =>
             {
@@ -49,21 +44,21 @@ namespace FurniroomAPI.Services
                             : "This email address is available."
                     };
                 }
-            }, "Check email", httpMethod, endpoint, queryParams, requestId);
+            }, "Check email", transfer);
         }
 
-        public async Task<ServiceResponseModel> GenerateCodeAsync(string email, string httpMethod, string endpoint, string queryParams, string requestId)
+        public async Task<ServiceResponseModel> GenerateCodeAsync(string email, TransferLogModel transfer)
         {
             try
             {
-                await LogActionAsync("Generate code started", httpMethod, endpoint, queryParams, requestId);
+                await LogActionAsync("Generate code started", transfer);
 
                 int verificationCode = Random.Shared.Next(1000, 9999);
                 string messageBody = $"Hi, your verification code: {verificationCode}";
 
                 await SendEmailAsync(email, messageBody, "Verification code");
 
-                await LogActionAsync("Verification code sent", httpMethod, endpoint, queryParams, requestId);
+                await LogActionAsync("Verification code sent", transfer);
 
                 return new ServiceResponseModel
                 {
@@ -74,12 +69,12 @@ namespace FurniroomAPI.Services
             }
             catch (Exception ex)
             {
-                await LogErrorAsync(ex, httpMethod, endpoint, queryParams, requestId);
+                await LogErrorAsync(ex, transfer);
                 return CreateErrorResponse($"Error generating code: {ex.Message}");
             }
         }
 
-        public async Task<ServiceResponseModel> ResetPasswordAsync(string email, string httpMethod, string endpoint, string queryParams, string requestId)
+        public async Task<ServiceResponseModel> ResetPasswordAsync(string email, TransferLogModel transfer)
         {
             return await ExecuteDatabaseOperation(async (connection) =>
             {
@@ -111,10 +106,10 @@ namespace FurniroomAPI.Services
                     Message = "Password successfully reset.",
                     Data = newPassword
                 };
-            }, "Reset password", httpMethod, endpoint, queryParams, requestId);
+            }, "Reset password", transfer);
         }
 
-        public async Task<ServiceResponseModel> SignInAsync(SignInModel signIn, string httpMethod, string endpoint, string queryParams, string requestId)
+        public async Task<ServiceResponseModel> SignInAsync(SignInModel signIn, TransferLogModel transfer)
         {
             return await ExecuteDatabaseOperation(async (connection) =>
             {
@@ -136,10 +131,10 @@ namespace FurniroomAPI.Services
                         Data = result
                     };
                 }
-            }, "Sign in", httpMethod, endpoint, queryParams, requestId);
+            }, "Sign in", transfer);
         }
 
-        public async Task<ServiceResponseModel> SignUpAsync(SignUpModel signUp, string httpMethod, string endpoint, string queryParams, string requestId)
+        public async Task<ServiceResponseModel> SignUpAsync(SignUpModel signUp, TransferLogModel transfer)
         {
             return await ExecuteDatabaseOperation(async (connection) =>
             {
@@ -185,7 +180,7 @@ namespace FurniroomAPI.Services
                     Status = true,
                     Message = "Account successfully created."
                 };
-            }, "Sign up", httpMethod, endpoint, queryParams, requestId);
+            }, "Sign up", transfer);
         }
 
         private async Task SendEmailAsync(string recipientEmail, string messageBody, string subject)
@@ -208,17 +203,11 @@ namespace FurniroomAPI.Services
             }
         }
 
-        private async Task<ServiceResponseModel> ExecuteDatabaseOperation(
-            Func<MySqlConnection, Task<ServiceResponseModel>> operation,
-            string operationName,
-            string httpMethod,
-            string endpoint,
-            string queryParams,
-            string requestId)
+        private async Task<ServiceResponseModel> ExecuteDatabaseOperation(Func<MySqlConnection, Task<ServiceResponseModel>> operation, string operationName, TransferLogModel transfer)
         {
             try
             {
-                await LogActionAsync($"{operationName} started", httpMethod, endpoint, queryParams, requestId);
+                await LogActionAsync($"{operationName} started", transfer);
 
                 using (var connection = new MySqlConnection(_connectionString))
                 {
@@ -229,35 +218,30 @@ namespace FurniroomAPI.Services
                         result.Status
                             ? $"{operationName} completed"
                             : $"{operationName} failed: {result.Message}",
-                        httpMethod, endpoint, queryParams, requestId);
+                        transfer);
 
                     return result;
                 }
             }
             catch (Exception ex)
             {
-                await LogErrorAsync(ex, httpMethod, endpoint, queryParams, requestId);
+                await LogErrorAsync(ex, transfer);
                 return CreateErrorResponse($"Error during {operationName.ToLower()}: {ex.Message}");
             }
         }
 
-        private async Task LogActionAsync(
-            string status,
-            string httpMethod,
-            string endpoint,
-            string queryParams,
-            string requestId)
+        private async Task LogActionAsync(string status, TransferLogModel transfer)
         {
             try
             {
                 await _loggingService.AddLogAsync(new LogModel
                 {
                     Date = DateTime.UtcNow,
-                    HttpMethod = httpMethod,
-                    Endpoint = endpoint,
-                    QueryParams = queryParams,
+                    HttpMethod = transfer.HttpMethod,
+                    Endpoint = transfer.Endpoint,
+                    QueryParams = transfer.QueryParams,
                     Status = status,
-                    RequestId = requestId
+                    RequestId = transfer.RequestId
                 });
             }
             catch (Exception ex)
@@ -266,15 +250,9 @@ namespace FurniroomAPI.Services
             }
         }
 
-        private async Task LogErrorAsync(
-            Exception ex,
-            string httpMethod,
-            string endpoint,
-            string queryParams,
-            string requestId)
+        private async Task LogErrorAsync(Exception ex, TransferLogModel transfer)
         {
-            await LogActionAsync($"ERROR: {ex.GetType().Name} - {ex.Message}",
-                httpMethod, endpoint, queryParams, requestId);
+            await LogActionAsync($"ERROR: {ex.GetType().Name} - {ex.Message}", transfer);
         }
 
         private ServiceResponseModel CreateErrorResponse(string message)

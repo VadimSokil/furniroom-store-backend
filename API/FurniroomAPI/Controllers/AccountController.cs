@@ -4,6 +4,7 @@ using FurniroomAPI.Models.Log;
 using FurniroomAPI.Models.Response;
 using Microsoft.AspNetCore.Mvc;
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json;
 
 namespace FurniroomAPI.Controllers
 {
@@ -13,507 +14,172 @@ namespace FurniroomAPI.Controllers
     {
         private readonly IAccountService _accountService;
         private readonly IValidationService _validationService;
-        private readonly string _requestDate;
-        private readonly DateTime _logDate;
         private readonly ILoggingService _loggingService;
-        private readonly string _requestId;
         private readonly HttpRequest _httpRequest;
 
-        public AccountController(IAccountService accountService, IValidationService validationService, Func<DateTime> requestDate, ILoggingService loggingService, IHttpContextAccessor httpContextAccessor)
+        public AccountController(IAccountService accountService, IValidationService validationService, ILoggingService loggingService, IHttpContextAccessor httpContextAccessor)
         {
             _accountService = accountService;
             _validationService = validationService;
-            _logDate = requestDate();
-            _requestDate = requestDate().ToString("dd/MM/yyyy HH:mm:ss") + " UTC";
             _loggingService = loggingService;
-            _requestId = Guid.NewGuid().ToString();
             _httpRequest = httpContextAccessor.HttpContext.Request;
+        }
+
+        private async Task<ActionResult<APIResponseModel>> ProcessRequest<T>(T requestData, Func<T, TransferLogModel, Task<ServiceResponseModel>> serviceCall, Func<T, string> getQueryParams, Action<T>[] validations)
+        {
+            var requestId = Guid.NewGuid().ToString();
+            var formattedTime = DateTime.UtcNow.ToString("dd/MM/yyyy HH:mm:ss") + " UTC";
+            var queryParams = getQueryParams(requestData);
+
+            var transfer = new TransferLogModel
+            {
+                HttpMethod = _httpRequest.Method,
+                Endpoint = _httpRequest.Path,
+                QueryParams = queryParams,
+                RequestId = requestId
+            };
+
+            await LogActionAsync("Request started", transfer);
+
+            foreach (var validate in validations)
+            {
+                validate(requestData);
+            }
+
+            if (!ModelState.IsValid)
+            {
+                return await HandleValidationError("Invalid request structure", transfer, formattedTime);
+            }
+
+            var serviceResponse = await serviceCall(requestData, transfer);
+            var gatewayResponse = new APIResponseModel
+            {
+                Date = formattedTime,
+                Status = serviceResponse.Status,
+                Message = serviceResponse.Message,
+                Data = serviceResponse.Data
+            };
+
+            await LogActionAsync("Request completed", transfer);
+            return Ok(gatewayResponse);
+        }
+
+        private async Task LogActionAsync(string status, TransferLogModel transfer)
+        {
+            await _loggingService.AddLogAsync(new LogModel
+            {
+                Date = DateTime.UtcNow,
+                HttpMethod = transfer.HttpMethod,
+                Endpoint = transfer.Endpoint,
+                QueryParams = transfer.QueryParams,
+                Status = status,
+                RequestId = transfer.RequestId
+            });
+        }
+
+        private async Task<ActionResult<APIResponseModel>> HandleValidationError(string message, TransferLogModel transfer, string formattedTime)
+        {
+            await LogActionAsync(message, transfer);
+            return new APIResponseModel
+            {
+                Date = formattedTime,
+                Status = false,
+                Message = message
+            };
         }
 
         [HttpGet("get-account-information")]
         public async Task<ActionResult<APIResponseModel>> AccountInformation([FromQuery][Required] int? accountId)
         {
-            var log = new LogModel
-            {
-                Date = _logDate,
-                HttpMethod = _httpRequest.Method,
-                Endpoint = _httpRequest.Path,
-                QueryParams = _httpRequest.QueryString.Value ?? string.Empty,
-                Status = "Received a new request",
-                RequestId = _requestId
-            };
-
-            await _loggingService.AddLogAsync(log);
-
-            if (!ModelState.IsValid)
-            {
-                var error = new LogModel
+            return await ProcessRequest(
+                accountId,
+                (data, transfer) => _accountService.GetAccountInformationAsync((int)data, transfer),
+                data => $"accountId={data}",
+                new Action<int?>[]
                 {
-                    Date = _logDate,
-                    HttpMethod = _httpRequest.Method,
-                    Endpoint = _httpRequest.Path,
-                    QueryParams = _httpRequest.QueryString.Value ?? string.Empty,
-                    Status = "Structure of your request is different from what the server expects or has empty fields.",
-                    RequestId = _requestId
-                };
-
-                await _loggingService.AddLogAsync(error);
-
-                return new APIResponseModel
-                {
-                    Date = _requestDate,
-                    Status = false,
-                    Message = "Structure of your request is different from what the server expects or has empty fields."
-                };
-            }
-            else if (!_validationService.IsValidDigit(accountId))
-            {
-                var error = new LogModel
-                {
-                    Date = _logDate,
-                    HttpMethod = _httpRequest.Method,
-                    Endpoint = _httpRequest.Path,
-                    QueryParams = _httpRequest.QueryString.Value ?? string.Empty,
-                    Status = "Account ID must be a positive number.",
-                    RequestId = _requestId
-                };
-
-                await _loggingService.AddLogAsync(error);
-
-                return new APIResponseModel
-                {
-                    Date = _requestDate,
-                    Status = false,
-                    Message = "Account ID must be a positive number."
-                };
-            }
-            else
-            {
-                var serviceResponse = await _accountService.GetAccountInformationAsync(
-                    (int)accountId,
-                    _httpRequest.Method,
-                    _httpRequest.Path,
-                    _httpRequest.QueryString.Value ?? string.Empty,
-                    _requestId);
-
-                var gatewayResponse = new APIResponseModel
-                {
-                    Date = _requestDate,
-                    Status = serviceResponse.Status,
-                    Message = serviceResponse.Message,
-                    Data = serviceResponse.Data
-                };
-                return Ok(gatewayResponse);
-            }
+                    data => ValidateDigit(data, "Account ID must be a positive number.")
+                });
         }
 
         [HttpPut("change-name")]
         public async Task<ActionResult<APIResponseModel>> ChangeName([FromBody] ChangeNameModel changeName)
         {
-            var log = new LogModel
-            {
-                Date = _logDate,
-                HttpMethod = _httpRequest.Method,
-                Endpoint = _httpRequest.Path,
-                QueryParams = _httpRequest.QueryString.Value ?? string.Empty,
-                Status = "Received a new request",
-                RequestId = _requestId
-            };
-
-            await _loggingService.AddLogAsync(log);
-
-            if (!ModelState.IsValid)
-            {
-                var error = new LogModel
+            return await ProcessRequest(
+                changeName,
+                (data, transfer) => _accountService.ChangeNameAsync(data, transfer),
+                data => JsonSerializer.Serialize(data),
+                new Action<ChangeNameModel>[]
                 {
-                    Date = _logDate,
-                    HttpMethod = _httpRequest.Method,
-                    Endpoint = _httpRequest.Path,
-                    QueryParams = _httpRequest.QueryString.Value ?? string.Empty,
-                    Status = "Structure of your request is different from what the server expects or has empty fields.",
-                    RequestId = _requestId
-                };
-
-                await _loggingService.AddLogAsync(error);
-
-                return new APIResponseModel
-                {
-                    Date = _requestDate,
-                    Status = false,
-                    Message = "Structure of your request is different from what the server expects or has empty fields."
-                };
-            }
-            else if (!_validationService.IsValidLength(changeName.OldName, 50))
-            {
-                var error = new LogModel
-                {
-                    Date = _logDate,
-                    HttpMethod = _httpRequest.Method,
-                    Endpoint = _httpRequest.Path,
-                    QueryParams = _httpRequest.QueryString.Value ?? string.Empty,
-                    Status = "Old name cannot exceed 50 characters in length.",
-                    RequestId = _requestId
-                };
-
-                await _loggingService.AddLogAsync(error);
-
-                return new APIResponseModel
-                {
-                    Date = _requestDate,
-                    Status = false,
-                    Message = "Old name cannot exceed 50 characters in length."
-                };
-            }
-            else if (!_validationService.IsValidLength(changeName.NewName, 50))
-            {
-                var error = new LogModel
-                {
-                    Date = _logDate,
-                    HttpMethod = _httpRequest.Method,
-                    Endpoint = _httpRequest.Path,
-                    QueryParams = _httpRequest.QueryString.Value ?? string.Empty,
-                    Status = "New name cannot exceed 50 characters in length.",
-                    RequestId = _requestId
-                };
-
-                await _loggingService.AddLogAsync(error);
-
-                return new APIResponseModel
-                {
-                    Date = _requestDate,
-                    Status = false,
-                    Message = "New name cannot exceed 50 characters in length."
-                };
-            }
-            else
-            {
-                var serviceResponse = await _accountService.ChangeNameAsync(
-                    changeName,
-                    _httpRequest.Method,
-                    _httpRequest.Path,
-                    _httpRequest.QueryString.Value ?? string.Empty,
-                    _requestId);
-
-                var gatewayResponse = new APIResponseModel
-                {
-                    Date = _requestDate,
-                    Status = serviceResponse.Status,
-                    Message = serviceResponse.Message,
-                    Data = serviceResponse.Data
-                };
-                return Ok(gatewayResponse);
-            }
+                    data => ValidateLength(data.OldName, 50, "Old name cannot exceed 50 characters."),
+                    data => ValidateLength(data.NewName, 50, "New name cannot exceed 50 characters.")
+                });
         }
 
         [HttpPut("change-email")]
         public async Task<ActionResult<APIResponseModel>> ChangeEmail([FromBody] ChangeEmailModel changeEmail)
         {
-            var log = new LogModel
-            {
-                Date = _logDate,
-                HttpMethod = _httpRequest.Method,
-                Endpoint = _httpRequest.Path,
-                QueryParams = _httpRequest.QueryString.Value ?? string.Empty,
-                Status = "Received a new request",
-                RequestId = _requestId
-            };
-
-            await _loggingService.AddLogAsync(log);
-
-            if (!ModelState.IsValid)
-            {
-                var error = new LogModel
+            return await ProcessRequest(
+                changeEmail,
+                (data, transfer) => _accountService.ChangeEmailAsync(data, transfer),
+                data => JsonSerializer.Serialize(data),
+                new Action<ChangeEmailModel>[]
                 {
-                    Date = _logDate,
-                    HttpMethod = _httpRequest.Method,
-                    Endpoint = _httpRequest.Path,
-                    QueryParams = _httpRequest.QueryString.Value ?? string.Empty,
-                    Status = "Structure of your request is different from what the server expects or has empty fields.",
-                    RequestId = _requestId
-                };
-
-                await _loggingService.AddLogAsync(error);
-
-                return new APIResponseModel
-                {
-                    Date = _requestDate,
-                    Status = false,
-                    Message = "Structure of your request is different from what the server expects or has empty fields."
-                };
-            }
-            else if (!_validationService.IsValidEmail(changeEmail.OldEmail))
-            {
-                var error = new LogModel
-                {
-                    Date = _logDate,
-                    HttpMethod = _httpRequest.Method,
-                    Endpoint = _httpRequest.Path,
-                    QueryParams = _httpRequest.QueryString.Value ?? string.Empty,
-                    Status = "Old email address should be in the format: example@domain.com, where example is the username and domain.com is the domain.",
-                    RequestId = _requestId
-                };
-
-                await _loggingService.AddLogAsync(error);
-
-                return new APIResponseModel
-                {
-                    Date = _requestDate,
-                    Status = false,
-                    Message = "Old email address should be in the format: example@domain.com, where example is the username and domain.com is the domain."
-                };
-            }
-            else if (!_validationService.IsValidEmail(changeEmail.NewEmail))
-            {
-                var error = new LogModel
-                {
-                    Date = _logDate,
-                    HttpMethod = _httpRequest.Method,
-                    Endpoint = _httpRequest.Path,
-                    QueryParams = _httpRequest.QueryString.Value ?? string.Empty,
-                    Status = "New email address should be in the format: example@domain.com, where example is the username and domain.com is the domain.",
-                    RequestId = _requestId
-                };
-
-                await _loggingService.AddLogAsync(error);
-
-                return new APIResponseModel
-                {
-                    Date = _requestDate,
-                    Status = false,
-                    Message = "New email address should be in the format: example@domain.com, where example is the username and domain.com is the domain."
-                };
-            }
-            else if (!_validationService.IsValidLength(changeEmail.OldEmail, 254))
-            {
-                var error = new LogModel
-                {
-                    Date = _logDate,
-                    HttpMethod = _httpRequest.Method,
-                    Endpoint = _httpRequest.Path,
-                    QueryParams = _httpRequest.QueryString.Value ?? string.Empty,
-                    Status = "Old email address cannot exceed 254 characters in length.",
-                    RequestId = _requestId
-                };
-
-                await _loggingService.AddLogAsync(error);
-
-                return new APIResponseModel
-                {
-                    Date = _requestDate,
-                    Status = false,
-                    Message = "Old email address cannot exceed 254 characters in length."
-                };
-            }
-            else if (!_validationService.IsValidLength(changeEmail.NewEmail, 254))
-            {
-                var error = new LogModel
-                {
-                    Date = _logDate,
-                    HttpMethod = _httpRequest.Method,
-                    Endpoint = _httpRequest.Path,
-                    QueryParams = _httpRequest.QueryString.Value ?? string.Empty,
-                    Status = "New email address cannot exceed 254 characters in length.",
-                    RequestId = _requestId
-                };
-
-                await _loggingService.AddLogAsync(error);
-
-                return new APIResponseModel
-                {
-                    Date = _requestDate,
-                    Status = false,
-                    Message = "New email address cannot exceed 254 characters in length."
-                };
-            }
-            else
-            {
-                var serviceResponse = await _accountService.ChangeEmailAsync(
-                    changeEmail,
-                    _httpRequest.Method,
-                    _httpRequest.Path,
-                    _httpRequest.QueryString.Value ?? string.Empty,
-                    _requestId);
-                var gatewayResponse = new APIResponseModel
-                {
-                    Date = _requestDate,
-                    Status = serviceResponse.Status,
-                    Message = serviceResponse.Message,
-                    Data = serviceResponse.Data
-                };
-                return Ok(gatewayResponse);
-            }
+                    data => ValidateEmail(data.OldEmail),
+                    data => ValidateEmail(data.NewEmail),
+                    data => ValidateLength(data.OldEmail, 254, "Old email cannot exceed 254 characters."),
+                    data => ValidateLength(data.NewEmail, 254, "New email cannot exceed 254 characters.")
+                });
         }
 
         [HttpPut("change-password")]
         public async Task<ActionResult<APIResponseModel>> ChangePassword([FromBody] ChangePasswordModel changePassword)
         {
-            var log = new LogModel
-            {
-                Date = _logDate,
-                HttpMethod = _httpRequest.Method,
-                Endpoint = _httpRequest.Path,
-                QueryParams = _httpRequest.QueryString.Value ?? string.Empty,
-                Status = "Received a new request",
-                RequestId = _requestId
-            };
-
-            await _loggingService.AddLogAsync(log);
-
-            if (!ModelState.IsValid)
-            {
-                var error = new LogModel
+            return await ProcessRequest(
+                changePassword,
+                (data, transfer) => _accountService.ChangePasswordAsync(data, transfer),
+                data => JsonSerializer.Serialize(data),
+                new Action<ChangePasswordModel>[]
                 {
-                    Date = _logDate,
-                    HttpMethod = _httpRequest.Method,
-                    Endpoint = _httpRequest.Path,
-                    QueryParams = _httpRequest.QueryString.Value ?? string.Empty,
-                    Status = "Structure of your request is different from what the server expects or has empty fields.",
-                    RequestId = _requestId
-                };
-
-                await _loggingService.AddLogAsync(error);
-
-                return new APIResponseModel
-                {
-                    Date = _requestDate,
-                    Status = false,
-                    Message = "Structure of your request is different from what the server expects or has empty fields."
-                };
-            }
-            else if (!_validationService.IsValidLength(changePassword.OldPasswordHash, 128))
-            {
-                var error = new LogModel
-                {
-                    Date = _logDate,
-                    HttpMethod = _httpRequest.Method,
-                    Endpoint = _httpRequest.Path,
-                    QueryParams = _httpRequest.QueryString.Value ?? string.Empty,
-                    Status = "Old password hash cannot exceed 128 characters in length.",
-                    RequestId = _requestId
-                };
-
-                await _loggingService.AddLogAsync(error);
-
-                return new APIResponseModel
-                {
-                    Date = _requestDate,
-                    Status = false,
-                    Message = "Old password hash cannot exceed 128 characters in length."
-                };
-            }
-            else if (!_validationService.IsValidLength(changePassword.NewPasswordHash, 128))
-            {
-                var error = new LogModel
-                {
-                    Date = _logDate,
-                    HttpMethod = _httpRequest.Method,
-                    Endpoint = _httpRequest.Path,
-                    QueryParams = _httpRequest.QueryString.Value ?? string.Empty,
-                    Status = "New password hash cannot exceed 128 characters in length.",
-                    RequestId = _requestId
-                };
-
-                await _loggingService.AddLogAsync(error);
-
-                return new APIResponseModel
-                {
-                    Date = _requestDate,
-                    Status = false,
-                    Message = "New password hash cannot exceed 128 characters in length."
-                };
-            }
-            else
-            {
-                var serviceResponse = await _accountService.ChangePasswordAsync(
-                    changePassword,
-                    _httpRequest.Method,
-                    _httpRequest.Path,
-                    _httpRequest.QueryString.Value ?? string.Empty,
-                    _requestId);
-                var gatewayResponse = new APIResponseModel
-                {
-                    Date = _requestDate,
-                    Status = serviceResponse.Status,
-                    Message = serviceResponse.Message,
-                    Data = serviceResponse.Data
-                };
-                return Ok(gatewayResponse);
-            }
+                    data => ValidateLength(data.OldPasswordHash, 128, "Old password hash cannot exceed 128 characters."),
+                    data => ValidateLength(data.NewPasswordHash, 128, "New password hash cannot exceed 128 characters.")
+                });
         }
 
         [HttpDelete("delete-account")]
         public async Task<ActionResult<APIResponseModel>> DeleteAccount([FromQuery][Required] int? accountId)
         {
-            var log = new LogModel
-            {
-                Date = _logDate,
-                HttpMethod = _httpRequest.Method,
-                Endpoint = _httpRequest.Path,
-                QueryParams = _httpRequest.QueryString.Value ?? string.Empty,
-                Status = "Received a new request",
-                RequestId = _requestId
-            };
-
-            await _loggingService.AddLogAsync(log);
-
-            if (!ModelState.IsValid)
-            {
-                var error = new LogModel
+            return await ProcessRequest(
+                accountId,
+                (data, transfer) => _accountService.DeleteAccountAsync((int)data, transfer),
+                data => $"accountId={data}",
+                new Action<int?>[]
                 {
-                    Date = _logDate,
-                    HttpMethod = _httpRequest.Method,
-                    Endpoint = _httpRequest.Path,
-                    QueryParams = _httpRequest.QueryString.Value ?? string.Empty,
-                    Status = "Structure of your request is different from what the server expects or has empty fields.",
-                    RequestId = _requestId
-                };
+                    data => ValidateDigit(data, "Account ID must be a positive number.")
+                });
+        }
 
-                await _loggingService.AddLogAsync(error);
-
-                return new APIResponseModel
-                {
-                    Date = _requestDate,
-                    Status = false,
-                    Message = "Structure of your request is different from what the server expects or has empty fields."
-                };
+        private void ValidateDigit(int? value, string errorMessage)
+        {
+            if (!_validationService.IsValidDigit(value))
+            {
+                ModelState.AddModelError(string.Empty, errorMessage);
             }
-            else if (!_validationService.IsValidDigit(accountId))
+        }
+
+        private void ValidateLength(string value, int maxLength, string errorMessage)
+        {
+            if (!_validationService.IsValidLength(value, maxLength))
             {
-                var error = new LogModel
-                {
-                    Date = _logDate,
-                    HttpMethod = _httpRequest.Method,
-                    Endpoint = _httpRequest.Path,
-                    QueryParams = _httpRequest.QueryString.Value ?? string.Empty,
-                    Status = "Account ID must be a positive number.",
-                    RequestId = _requestId
-                };
-
-                await _loggingService.AddLogAsync(error);
-
-                return new APIResponseModel
-                {
-                    Date = _requestDate,
-                    Status = false,
-                    Message = "Account ID must be a positive number."
-                };
+                ModelState.AddModelError(string.Empty, errorMessage);
             }
-            else
+        }
+
+        private void ValidateEmail(string email)
+        {
+            if (!_validationService.IsValidEmail(email))
             {
-                var serviceResponse = await _accountService.DeleteAccountAsync(
-                    (int)accountId,
-                    _httpRequest.Method,
-                    _httpRequest.Path,
-                    _httpRequest.QueryString.Value ?? string.Empty,
-                    _requestId);
-                var gatewayResponse = new APIResponseModel
-                {
-                    Date = _requestDate,
-                    Status = serviceResponse.Status,
-                    Message = serviceResponse.Message,
-                    Data = serviceResponse.Data
-                };
-                return Ok(gatewayResponse);
+                ModelState.AddModelError(string.Empty,
+                    "Email should be in format: example@domain.com");
             }
         }
     }

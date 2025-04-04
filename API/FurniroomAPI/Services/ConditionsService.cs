@@ -12,58 +12,29 @@ namespace FurniroomAPI.Services
         private readonly string _connectionString;
         private readonly Dictionary<string, string> _requests;
         private readonly ILoggingService _loggingService;
-        private readonly DateTime _logDate;
 
-        public ConditionsService(
-            string connectionString,
-            Dictionary<string, string> requests,
-            ILoggingService loggingService,
-            Func<DateTime> logDate)
+        public ConditionsService(string connectionString, Dictionary<string, string> requests, ILoggingService loggingService)
         {
             _connectionString = connectionString;
             _requests = requests;
             _loggingService = loggingService;
-            _logDate = logDate();
         }
 
-        public async Task<ServiceResponseModel> GetDeliveryConditionsAsync(
-            string httpMethod,
-            string endpoint,
-            string queryParams,
-            string requestId)
+        public async Task<ServiceResponseModel> GetDeliveryConditionsAsync(TransferLogModel transfer)
         {
-            return await GetInformationAsync(
-                "GetDeliveryConditions",
-                httpMethod,
-                endpoint,
-                queryParams,
-                requestId);
+            return await GetInformationAsync("GetDeliveryConditions", transfer);
         }
 
-        public async Task<ServiceResponseModel> GetPaymentConditionsAsync(
-            string httpMethod,
-            string endpoint,
-            string queryParams,
-            string requestId)
+        public async Task<ServiceResponseModel> GetPaymentConditionsAsync(TransferLogModel transfer)
         {
-            return await GetInformationAsync(
-                "GetPaymentConditions",
-                httpMethod,
-                endpoint,
-                queryParams,
-                requestId);
+            return await GetInformationAsync("GetPaymentConditions", transfer);
         }
 
-        private async Task<ServiceResponseModel> GetInformationAsync(
-            string requestKey,
-            string httpMethod,
-            string endpoint,
-            string queryParams,
-            string requestId)
+        private async Task<ServiceResponseModel> GetInformationAsync(string requestKey, TransferLogModel transfer)
         {
             try
             {
-                await LogActionAsync("Request started", httpMethod, endpoint, queryParams, requestId);
+                await LogActionAsync($"{requestKey} started", transfer);
 
                 var notes = new List<ConditionsModel>();
 
@@ -87,7 +58,7 @@ namespace FurniroomAPI.Services
                     }
                 }
 
-                await LogActionAsync("Request completed successfully", httpMethod, endpoint, queryParams, requestId);
+                await LogActionAsync($"{requestKey} completed successfully", transfer);
 
                 return new ServiceResponseModel
                 {
@@ -98,33 +69,28 @@ namespace FurniroomAPI.Services
             }
             catch (MySqlException ex)
             {
-                await LogErrorAsync(ex, httpMethod, endpoint, queryParams, requestId);
+                await LogErrorAsync(ex, transfer);
                 return CreateErrorResponse($"Database error: {ex.Message}");
             }
             catch (Exception ex)
             {
-                await LogErrorAsync(ex, httpMethod, endpoint, queryParams, requestId);
+                await LogErrorAsync(ex, transfer);
                 return CreateErrorResponse($"Unexpected error: {ex.Message}");
             }
         }
 
-        private async Task LogActionAsync(
-            string status,
-            string httpMethod,
-            string endpoint,
-            string queryParams,
-            string requestId)
+        private async Task LogActionAsync(string status, TransferLogModel transfer)
         {
             try
             {
                 await _loggingService.AddLogAsync(new LogModel
                 {
-                    Date = _logDate,
-                    HttpMethod = httpMethod,
-                    Endpoint = endpoint,
-                    QueryParams = queryParams,
+                    Date = DateTime.UtcNow,
+                    HttpMethod = transfer.HttpMethod,
+                    Endpoint = transfer.Endpoint,
+                    QueryParams = transfer.QueryParams,
                     Status = status,
-                    RequestId = requestId
+                    RequestId = transfer.RequestId
                 });
             }
             catch (Exception ex)
@@ -133,15 +99,9 @@ namespace FurniroomAPI.Services
             }
         }
 
-        private async Task LogErrorAsync(
-            Exception ex,
-            string httpMethod,
-            string endpoint,
-            string queryParams,
-            string requestId)
+        private async Task LogErrorAsync(Exception ex, TransferLogModel transfer)
         {
-            await LogActionAsync($"ERROR: {ex.GetType().Name} - {ex.Message}",
-                httpMethod, endpoint, queryParams, requestId);
+            await LogActionAsync($"ERROR: {ex.GetType().Name} - {ex.Message}", transfer);
         }
 
         private ServiceResponseModel CreateErrorResponse(string message)
@@ -149,10 +109,8 @@ namespace FurniroomAPI.Services
             return new ServiceResponseModel
             {
                 Status = false,
-                Message = message,
-                Data = null
+                Message = message
             };
         }
-
     }
 }

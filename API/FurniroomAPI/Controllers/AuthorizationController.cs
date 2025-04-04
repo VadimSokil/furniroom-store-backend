@@ -1,205 +1,191 @@
 ﻿using FurniroomAPI.Interfaces;
-using FurniroomAPI.Models;
+using FurniroomAPI.Models.Authorization;
 using FurniroomAPI.Models.Log;
 using FurniroomAPI.Models.Response;
 using Microsoft.AspNetCore.Mvc;
+using System.ComponentModel.DataAnnotations;
 using System.Net;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 
 namespace FurniroomAPI.Controllers
 {
     [Route("authorization")]
     [ApiController]
-    [Produces("application/json")]
     public class AuthorizationController : ControllerBase
     {
         private readonly IAuthorizationService _authorizationService;
+        private readonly IValidationService _validationService;
         private readonly ILoggingService _loggingService;
         private readonly HttpRequest _httpRequest;
-        private readonly JsonSerializerOptions _jsonOptions = new()
-        {
-            PropertyNameCaseInsensitive = true,
-            Converters = { new JsonStringEnumConverter() }
-        };
 
-        public AuthorizationController(
-            IAuthorizationService authorizationService,
-            ILoggingService loggingService,
-            IHttpContextAccessor httpContextAccessor)
+        public AuthorizationController(IAuthorizationService authorizationService, IValidationService validationService, ILoggingService loggingService, IHttpContextAccessor httpContextAccessor)
         {
             _authorizationService = authorizationService;
+            _validationService = validationService;
             _loggingService = loggingService;
             _httpRequest = httpContextAccessor.HttpContext.Request;
         }
 
-        private async Task<ActionResult<APIResponseModel>> ProcessRequest<T>(
-            T requestData,
-            JsonElement rawJson,
-            Func<T, string, Task<ServiceResponseModel>> serviceCall,
-            Func<T, string> getQueryParams) where T : StrictValidationModel
+        private async Task<ActionResult<APIResponseModel>> ProcessRequest<T>(T requestData, Func<T, TransferLogModel, Task<ServiceResponseModel>> serviceCall, Func<T, string> getQueryParams, Action<T>[] validations)
         {
             var requestId = Guid.NewGuid().ToString();
             var formattedTime = DateTime.UtcNow.ToString("dd/MM/yyyy HH:mm:ss") + " UTC";
+            var queryParams = getQueryParams(requestData);
 
-            var strictErrors = requestData.ValidateStrict(rawJson);
-            if (strictErrors?.Count > 0)
+            var transfer = new TransferLogModel
             {
-                await LogActionAsync($"Validation failed: {string.Join(", ", strictErrors)}",
-                                   rawJson.ToString(), requestId);
-                return BadRequest(new APIResponseModel
-                {
-                    Date = formattedTime,
-                    Status = false,
-                    Message = "Validation error",
-                    Data = strictErrors
-                });
+                HttpMethod = _httpRequest.Method,
+                Endpoint = _httpRequest.Path,
+                QueryParams = queryParams,
+                RequestId = requestId
+            };
+
+            await LogActionAsync("Request started", transfer);
+
+            foreach (var validate in validations)
+            {
+                validate(requestData);
             }
 
             if (!ModelState.IsValid)
             {
-                var modelErrors = ModelState.Values
-                    .SelectMany(v => v.Errors)
-                    .Select(e => e.ErrorMessage)
-                    .Where(m => !string.IsNullOrEmpty(m))
-                    .ToList();
-
-                await LogActionAsync($"Validation failed: {string.Join(", ", modelErrors)}",
-                                   rawJson.ToString(), requestId);
-                return BadRequest(new APIResponseModel
-                {
-                    Date = formattedTime,
-                    Status = false,
-                    Message = "Validation error",
-                    Data = modelErrors
-                });
+                return await HandleValidationError("Invalid request structure", transfer, formattedTime);
             }
 
-            var queryParams = getQueryParams(requestData);
-            await LogActionAsync("Request started", queryParams, requestId);
-
-            try
+            var serviceResponse = await serviceCall(requestData, transfer);
+            var gatewayResponse = new APIResponseModel
             {
-                var serviceResponse = await serviceCall(requestData, requestId);
-                await LogActionAsync("Request completed", queryParams, requestId);
+                Date = formattedTime,
+                Status = serviceResponse.Status,
+                Message = serviceResponse.Message,
+                Data = serviceResponse.Data
+            };
 
-                return Ok(new APIResponseModel
-                {
-                    Date = formattedTime,
-                    Status = serviceResponse.Status,
-                    Message = serviceResponse.Message,
-                    Data = serviceResponse.Data
-                });
-            }
-            catch (Exception ex)
-            {
-                await LogActionAsync($"Error: {ex.Message}", queryParams, requestId);
-                return StatusCode(500, new APIResponseModel
-                {
-                    Date = formattedTime,
-                    Status = false,
-                    Message = "Internal server error",
-                    Data = ex.Message
-                });
-            }
+            await LogActionAsync("Request completed", transfer);
+            return Ok(gatewayResponse);
         }
 
-        private async Task LogActionAsync(string status, string queryParams, string requestId)
+        private async Task LogActionAsync(string status, TransferLogModel transfer)
         {
             await _loggingService.AddLogAsync(new LogModel
             {
                 Date = DateTime.UtcNow,
-                HttpMethod = _httpRequest.Method,
-                Endpoint = _httpRequest.Path,
-                QueryParams = queryParams,
+                HttpMethod = transfer.HttpMethod,
+                Endpoint = transfer.Endpoint,
+                QueryParams = transfer.QueryParams,
                 Status = status,
-                RequestId = requestId
+                RequestId = transfer.RequestId
             });
         }
 
-        [HttpPost("sign-up")]
-        public async Task<ActionResult<APIResponseModel>> SignUp()
+        private async Task<ActionResult<APIResponseModel>> HandleValidationError(string message, TransferLogModel transfer, string formattedTime)
         {
-            using var doc = await JsonDocument.ParseAsync(Request.Body);
-            var request = JsonSerializer.Deserialize<SignUpModel>(doc.RootElement, _jsonOptions);
+            await LogActionAsync(message, transfer);
+            return new APIResponseModel
+            {
+                Date = formattedTime,
+                Status = false,
+                Message = message
+            };
+        }
+
+        [HttpPost("sign-up")]
+        public async Task<ActionResult<APIResponseModel>> SignUp([FromBody] SignUpModel signUp)
+        {
             return await ProcessRequest(
-                request,
-                doc.RootElement,
-                (data, requestId) => _authorizationService.SignUpAsync(
-                    data,
-                    _httpRequest.Method,
-                    _httpRequest.Path,
-                    JsonSerializer.Serialize(data, _jsonOptions),
-                    requestId),
-                data => JsonSerializer.Serialize(data, _jsonOptions));
+                signUp,
+                (data, transfer) => _authorizationService.SignUpAsync(data, transfer),
+                data => JsonSerializer.Serialize(data),
+                new Action<SignUpModel>[]
+                {
+                    data => ValidateDigit((int)data.AccountId, "Account ID must be a positive number."),
+                    data => ValidateLength(data.AccountName, 50, "Account name cannot exceed 50 characters."),
+                    data => ValidateEmail(data.Email),
+                    data => ValidateLength(data.Email, 254, "Email cannot exceed 254 characters."),
+                    data => ValidateLength(data.PasswordHash, 128, "Password hash cannot exceed 128 characters.")
+                });
         }
 
         [HttpPost("sign-in")]
-        public async Task<ActionResult<APIResponseModel>> SignIn()
+        public async Task<ActionResult<APIResponseModel>> SignIn([FromBody] SignInModel signIn)
         {
-            using var doc = await JsonDocument.ParseAsync(Request.Body);
-            var request = JsonSerializer.Deserialize<SignInModel>(doc.RootElement, _jsonOptions);
             return await ProcessRequest(
-                request,
-                doc.RootElement,
-                (data, requestId) => _authorizationService.SignInAsync(
-                    data,
-                    _httpRequest.Method,
-                    _httpRequest.Path,
-                    JsonSerializer.Serialize(data, _jsonOptions),
-                    requestId),
-                data => JsonSerializer.Serialize(data, _jsonOptions));
+                signIn,
+                (data, transfer) => _authorizationService.SignInAsync(data, transfer),
+                data => JsonSerializer.Serialize(data),
+                new Action<SignInModel>[]
+                {
+                    data => ValidateEmail(data.Email),
+                    data => ValidateLength(data.Email, 254, "Email cannot exceed 254 characters."),
+                    data => ValidateLength(data.PasswordHash, 128, "Password hash cannot exceed 128 characters.")
+                });
         }
 
         [HttpPost("reset-password")]
-        public async Task<ActionResult<APIResponseModel>> ResetPassword()
+        public async Task<ActionResult<APIResponseModel>> ResetPassword([FromBody][Required] string email)
         {
-            using var doc = await JsonDocument.ParseAsync(Request.Body);
-            var request = JsonSerializer.Deserialize<EmailRequest>(doc.RootElement, _jsonOptions);
             return await ProcessRequest(
-                request,
-                doc.RootElement,
-                (data, requestId) => _authorizationService.ResetPasswordAsync(
-                    data.Email,
-                    _httpRequest.Method,
-                    _httpRequest.Path,
-                    JsonSerializer.Serialize(data, _jsonOptions),
-                    requestId),
-                data => JsonSerializer.Serialize(data, _jsonOptions));
+                email,
+                (data, transfer) => _authorizationService.ResetPasswordAsync(data, transfer),
+                data => string.Empty,
+                new Action<string>[]
+                {
+                    data => ValidateEmail(data),
+                    data => ValidateLength(data, 254, "Email cannot exceed 254 characters.")
+                });
         }
 
         [HttpGet("check-email")]
-        public async Task<ActionResult<APIResponseModel>> CheckEmail([FromQuery] string email)
+        public async Task<ActionResult<APIResponseModel>> CheckEmail([FromQuery][Required] string email)
         {
-            var request = new EmailRequest { Email = email };
-            var jsonElement = JsonSerializer.SerializeToElement(request, _jsonOptions);
             return await ProcessRequest(
-                request,
-                jsonElement,
-                (data, requestId) => _authorizationService.CheckEmailAsync(
-                    data.Email,
-                    _httpRequest.Method,
-                    _httpRequest.Path,
-                    JsonSerializer.Serialize(data, _jsonOptions),
-                    requestId),
-                data => JsonSerializer.Serialize(data, _jsonOptions));
+                email,
+                (data, transfer) => _authorizationService.CheckEmailAsync(data, transfer),
+                data => $"email={WebUtility.UrlEncode(data)}",
+                new Action<string>[]
+                {
+                    data => ValidateEmail(data),
+                    data => ValidateLength(data, 254, "Email cannot exceed 254 characters.")
+                });
         }
 
         [HttpGet("generate-verification-code")]
-        public async Task<ActionResult<APIResponseModel>> GenerateCode([FromQuery] string email)
+        public async Task<ActionResult<APIResponseModel>> GenerateCode([FromQuery][Required] string email)
         {
-            var request = new EmailRequest { Email = email };
-            var jsonElement = JsonSerializer.SerializeToElement(request, _jsonOptions);
             return await ProcessRequest(
-                request,
-                jsonElement,
-                (data, requestId) => _authorizationService.GenerateCodeAsync(
-                    data.Email,
-                    _httpRequest.Method,
-                    _httpRequest.Path,
-                    JsonSerializer.Serialize(data, _jsonOptions),
-                    requestId),
-                data => JsonSerializer.Serialize(data, _jsonOptions));
+                email,
+                (data, transfer) => _authorizationService.GenerateCodeAsync(data, transfer),
+                data => string.Empty,
+                new Action<string>[]
+                {
+                    data => ValidateEmail(data),
+                    data => ValidateLength(data, 254, "Email cannot exceed 254 characters.")
+                });
+        }
+
+        private void ValidateDigit(int value, string errorMessage)
+        {
+            if (!_validationService.IsValidDigit(value))
+            {
+                ModelState.AddModelError(string.Empty, errorMessage);
+            }
+        }
+
+        private void ValidateLength(string value, int maxLength, string errorMessage)
+        {
+            if (!_validationService.IsValidLength(value, maxLength))
+            {
+                ModelState.AddModelError(string.Empty, errorMessage);
+            }
+        }
+
+        private void ValidateEmail(string email)
+        {
+            if (!_validationService.IsValidEmail(email))
+            {
+                ModelState.AddModelError(string.Empty,
+                    "Email should be in format: example@domain.com");
+            }
         }
     }
 }
