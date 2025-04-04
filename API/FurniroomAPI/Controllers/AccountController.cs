@@ -41,6 +41,11 @@ namespace FurniroomAPI.Controllers
 
             await LogActionAsync("Request started", transfer);
 
+            if (!ModelState.IsValid)
+            {
+                return await HandleValidationError(transfer, formattedTime);
+            }
+
             foreach (var validate in validations)
             {
                 validate(requestData);
@@ -48,7 +53,7 @@ namespace FurniroomAPI.Controllers
 
             if (!ModelState.IsValid)
             {
-                return await HandleValidationError("Invalid request structure", transfer, formattedTime);
+                return await HandleValidationError(transfer, formattedTime);
             }
 
             var serviceResponse = await serviceCall(requestData, transfer);
@@ -64,6 +69,28 @@ namespace FurniroomAPI.Controllers
             return Ok(gatewayResponse);
         }
 
+        private async Task<ActionResult<APIResponseModel>> HandleValidationError(TransferLogModel transfer, string formattedTime)
+        {
+            var errorMessages = ModelState.Values
+                .SelectMany(v => v.Errors)
+                .Select(e => e.ErrorMessage)
+                .Where(m => !string.IsNullOrEmpty(m))
+                .Distinct();
+
+            string message = errorMessages.Any()
+                ? string.Join("; ", errorMessages)
+                : "Invalid request structure";
+
+            await LogActionAsync($"Validation failed: {message}", transfer);
+
+            return new APIResponseModel
+            {
+                Date = formattedTime,
+                Status = false,
+                Message = message
+            };
+        }
+
         private async Task LogActionAsync(string status, TransferLogModel transfer)
         {
             await _loggingService.AddLogAsync(new LogModel
@@ -75,17 +102,6 @@ namespace FurniroomAPI.Controllers
                 Status = status,
                 RequestId = transfer.RequestId
             });
-        }
-
-        private async Task<ActionResult<APIResponseModel>> HandleValidationError(string message, TransferLogModel transfer, string formattedTime)
-        {
-            await LogActionAsync(message, transfer);
-            return new APIResponseModel
-            {
-                Date = formattedTime,
-                Status = false,
-                Message = message
-            };
         }
 
         [HttpGet("get-account-information")]
@@ -110,8 +126,8 @@ namespace FurniroomAPI.Controllers
                 data => JsonSerializer.Serialize(data),
                 new Action<ChangeNameModel>[]
                 {
-                    data => ValidateLength(data.OldName, 50, "Old name cannot exceed 50 characters."),
-                    data => ValidateLength(data.NewName, 50, "New name cannot exceed 50 characters.")
+                    data => ValidateLength(data.OldName, "OldName", 50, "Old name cannot exceed 50 characters."),
+                    data => ValidateLength(data.NewName, "NewName", 50, "New name cannot exceed 50 characters.")
                 });
         }
 
@@ -124,10 +140,10 @@ namespace FurniroomAPI.Controllers
                 data => JsonSerializer.Serialize(data),
                 new Action<ChangeEmailModel>[]
                 {
-                    data => ValidateEmail(data.OldEmail),
-                    data => ValidateEmail(data.NewEmail),
-                    data => ValidateLength(data.OldEmail, 254, "Old email cannot exceed 254 characters."),
-                    data => ValidateLength(data.NewEmail, 254, "New email cannot exceed 254 characters.")
+                    data => ValidateEmail(data.OldEmail, "OldEmail"),
+                    data => ValidateEmail(data.NewEmail, "NewEmail"),
+                    data => ValidateLength(data.OldEmail, "OldEmail", 254, "Old email cannot exceed 254 characters."),
+                    data => ValidateLength(data.NewEmail, "NewEmail", 254, "New email cannot exceed 254 characters.")
                 });
         }
 
@@ -140,8 +156,8 @@ namespace FurniroomAPI.Controllers
                 data => JsonSerializer.Serialize(data),
                 new Action<ChangePasswordModel>[]
                 {
-                    data => ValidateLength(data.OldPasswordHash, 128, "Old password hash cannot exceed 128 characters."),
-                    data => ValidateLength(data.NewPasswordHash, 128, "New password hash cannot exceed 128 characters.")
+                    data => ValidateLength(data.OldPasswordHash, "OldPasswordHash", 128, "Old password hash cannot exceed 128 characters."),
+                    data => ValidateLength(data.NewPasswordHash, "NewPasswordHash", 128, "New password hash cannot exceed 128 characters.")
                 });
         }
 
@@ -162,24 +178,23 @@ namespace FurniroomAPI.Controllers
         {
             if (!_validationService.IsValidDigit(value))
             {
-                ModelState.AddModelError(string.Empty, errorMessage);
+                ModelState.AddModelError("AccountId", errorMessage);
             }
         }
 
-        private void ValidateLength(string value, int maxLength, string errorMessage)
+        private void ValidateLength(string value, string fieldName, int maxLength, string errorMessage)
         {
             if (!_validationService.IsValidLength(value, maxLength))
             {
-                ModelState.AddModelError(string.Empty, errorMessage);
+                ModelState.AddModelError(fieldName, errorMessage);
             }
         }
 
-        private void ValidateEmail(string email)
+        private void ValidateEmail(string email, string fieldName)
         {
             if (!_validationService.IsValidEmail(email))
             {
-                ModelState.AddModelError(string.Empty,
-                    "Email should be in format: example@domain.com");
+                ModelState.AddModelError(fieldName, "Email should be in format: example@domain.com");
             }
         }
     }

@@ -42,6 +42,11 @@ namespace FurniroomAPI.Controllers
 
             await LogActionAsync("Request started", transfer);
 
+            if (!ModelState.IsValid)
+            {
+                return await HandleValidationError(transfer, formattedTime);
+            }
+
             foreach (var validate in validations)
             {
                 validate(requestData);
@@ -49,7 +54,7 @@ namespace FurniroomAPI.Controllers
 
             if (!ModelState.IsValid)
             {
-                return await HandleValidationError("Invalid request structure", transfer, formattedTime);
+                return await HandleValidationError(transfer, formattedTime);
             }
 
             var serviceResponse = await serviceCall(requestData, transfer);
@@ -65,6 +70,28 @@ namespace FurniroomAPI.Controllers
             return Ok(gatewayResponse);
         }
 
+        private async Task<ActionResult<APIResponseModel>> HandleValidationError(TransferLogModel transfer, string formattedTime)
+        {
+            var errorMessages = ModelState.Values
+                .SelectMany(v => v.Errors)
+                .Select(e => e.ErrorMessage)
+                .Where(m => !string.IsNullOrEmpty(m))
+                .Distinct();
+
+            string message = errorMessages.Any()
+                ? string.Join("; ", errorMessages)
+                : "Invalid request structure";
+
+            await LogActionAsync($"Validation failed: {message}", transfer);
+
+            return new APIResponseModel
+            {
+                Date = formattedTime,
+                Status = false,
+                Message = message
+            };
+        }
+
         private async Task LogActionAsync(string status, TransferLogModel transfer)
         {
             await _loggingService.AddLogAsync(new LogModel
@@ -78,17 +105,6 @@ namespace FurniroomAPI.Controllers
             });
         }
 
-        private async Task<ActionResult<APIResponseModel>> HandleValidationError(string message, TransferLogModel transfer, string formattedTime)
-        {
-            await LogActionAsync(message, transfer);
-            return new APIResponseModel
-            {
-                Date = formattedTime,
-                Status = false,
-                Message = message
-            };
-        }
-
         [HttpPost("sign-up")]
         public async Task<ActionResult<APIResponseModel>> SignUp([FromBody] SignUpModel signUp)
         {
@@ -98,11 +114,11 @@ namespace FurniroomAPI.Controllers
                 data => JsonSerializer.Serialize(data),
                 new Action<SignUpModel>[]
                 {
-                    data => ValidateDigit((int)data.AccountId, "Account ID must be a positive number."),
-                    data => ValidateLength(data.AccountName, 50, "Account name cannot exceed 50 characters."),
-                    data => ValidateEmail(data.Email),
-                    data => ValidateLength(data.Email, 254, "Email cannot exceed 254 characters."),
-                    data => ValidateLength(data.PasswordHash, 128, "Password hash cannot exceed 128 characters.")
+                    data => ValidateDigit((int)data.AccountId, nameof(signUp.AccountId), "Account ID must be a positive number."),
+                    data => ValidateLength(data.AccountName, nameof(signUp.AccountName), 50, "Account name cannot exceed 50 characters."),
+                    data => ValidateEmail(data.Email, nameof(signUp.Email)),
+                    data => ValidateLength(data.Email, nameof(signUp.Email), 254, "Email cannot exceed 254 characters."),
+                    data => ValidateLength(data.PasswordHash, nameof(signUp.PasswordHash), 128, "Password hash cannot exceed 128 characters.")
                 });
         }
 
@@ -115,9 +131,9 @@ namespace FurniroomAPI.Controllers
                 data => JsonSerializer.Serialize(data),
                 new Action<SignInModel>[]
                 {
-                    data => ValidateEmail(data.Email),
-                    data => ValidateLength(data.Email, 254, "Email cannot exceed 254 characters."),
-                    data => ValidateLength(data.PasswordHash, 128, "Password hash cannot exceed 128 characters.")
+                    data => ValidateEmail(data.Email, nameof(signIn.Email)),
+                    data => ValidateLength(data.Email, nameof(signIn.Email), 254, "Email cannot exceed 254 characters."),
+                    data => ValidateLength(data.PasswordHash, nameof(signIn.PasswordHash), 128, "Password hash cannot exceed 128 characters.")
                 });
         }
 
@@ -130,8 +146,8 @@ namespace FurniroomAPI.Controllers
                 data => string.Empty,
                 new Action<string>[]
                 {
-                    data => ValidateEmail(data),
-                    data => ValidateLength(data, 254, "Email cannot exceed 254 characters.")
+                    data => ValidateEmail(data, "Email"),
+                    data => ValidateLength(data, "Email", 254, "Email cannot exceed 254 characters.")
                 });
         }
 
@@ -144,8 +160,8 @@ namespace FurniroomAPI.Controllers
                 data => $"email={WebUtility.UrlEncode(data)}",
                 new Action<string>[]
                 {
-                    data => ValidateEmail(data),
-                    data => ValidateLength(data, 254, "Email cannot exceed 254 characters.")
+                    data => ValidateEmail(data, "Email"),
+                    data => ValidateLength(data, "Email", 254, "Email cannot exceed 254 characters.")
                 });
         }
 
@@ -158,33 +174,32 @@ namespace FurniroomAPI.Controllers
                 data => string.Empty,
                 new Action<string>[]
                 {
-                    data => ValidateEmail(data),
-                    data => ValidateLength(data, 254, "Email cannot exceed 254 characters.")
+                    data => ValidateEmail(data, "Email"),
+                    data => ValidateLength(data, "Email", 254, "Email cannot exceed 254 characters.")
                 });
         }
 
-        private void ValidateDigit(int value, string errorMessage)
+        private void ValidateDigit(int value, string fieldName, string errorMessage)
         {
             if (!_validationService.IsValidDigit(value))
             {
-                ModelState.AddModelError(string.Empty, errorMessage);
+                ModelState.AddModelError(fieldName, errorMessage);
             }
         }
 
-        private void ValidateLength(string value, int maxLength, string errorMessage)
+        private void ValidateLength(string value, string fieldName, int maxLength, string errorMessage)
         {
             if (!_validationService.IsValidLength(value, maxLength))
             {
-                ModelState.AddModelError(string.Empty, errorMessage);
+                ModelState.AddModelError(fieldName, errorMessage);
             }
         }
 
-        private void ValidateEmail(string email)
+        private void ValidateEmail(string email, string fieldName)
         {
             if (!_validationService.IsValidEmail(email))
             {
-                ModelState.AddModelError(string.Empty,
-                    "Email should be in format: example@domain.com");
+                ModelState.AddModelError(fieldName, "Email should be in format: example@domain.com");
             }
         }
     }
