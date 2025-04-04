@@ -43,12 +43,33 @@ namespace FurniroomAPI.Controllers
 
             if (!ModelState.IsValid)
             {
-                return await HandleValidationError(transfer, formattedTime);
+                var typeErrors = ModelState
+                    .Where(x => x.Value.Errors.Any(e => e.Exception != null))
+                    .Select(x => $"Field '{x.Key}' has invalid type");
+
+                if (typeErrors.Any())
+                {
+                    await LogActionAsync("Type validation failed", transfer);
+                    return new APIResponseModel
+                    {
+                        Date = formattedTime,
+                        Status = false,
+                        Message = string.Join("; ", typeErrors)
+                    };
+                }
+
+                await LogActionAsync("Invalid request structure", transfer);
+                return new APIResponseModel
+                {
+                    Date = formattedTime,
+                    Status = false,
+                    Message = "Invalid request structure"
+                };
             }
 
-            foreach (var validate in validations)
+            foreach (var validation in validations)
             {
-                validate(requestData);
+                validation(requestData);
             }
 
             if (!ModelState.IsValid)
@@ -74,20 +95,15 @@ namespace FurniroomAPI.Controllers
             var errorMessages = ModelState.Values
                 .SelectMany(v => v.Errors)
                 .Select(e => e.ErrorMessage)
-                .Where(m => !string.IsNullOrEmpty(m))
-                .Distinct();
+                .Where(m => !string.IsNullOrEmpty(m));
 
-            string message = errorMessages.Any()
-                ? string.Join("; ", errorMessages)
-                : "Invalid request structure";
-
-            await LogActionAsync($"Validation failed: {message}", transfer);
+            await LogActionAsync($"Validation failed: {string.Join("; ", errorMessages)}", transfer);
 
             return new APIResponseModel
             {
                 Date = formattedTime,
                 Status = false,
-                Message = message
+                Message = string.Join("; ", errorMessages)
             };
         }
 
@@ -113,7 +129,8 @@ namespace FurniroomAPI.Controllers
                 data => $"accountId={data}",
                 new Action<int?>[]
                 {
-                    data => ValidateDigit(data, "Account ID must be a positive number.")
+                    data => ValidateRequired(data, nameof(data)),
+                    data => ValidateDigit((int)data, nameof(data))
                 });
         }
 
@@ -126,8 +143,10 @@ namespace FurniroomAPI.Controllers
                 data => JsonSerializer.Serialize(data),
                 new Action<ChangeNameModel>[]
                 {
-                    data => ValidateLength(data.OldName, "OldName", 50, "Old name cannot exceed 50 characters."),
-                    data => ValidateLength(data.NewName, "NewName", 50, "New name cannot exceed 50 characters.")
+                    data => ValidateRequired(data.OldName, nameof(data.OldName)),
+                    data => ValidateRequired(data.NewName, nameof(data.NewName)),
+                    data => ValidateLength(data.OldName, nameof(data.OldName), 50),
+                    data => ValidateLength(data.NewName, nameof(data.NewName), 50)
                 });
         }
 
@@ -140,10 +159,12 @@ namespace FurniroomAPI.Controllers
                 data => JsonSerializer.Serialize(data),
                 new Action<ChangeEmailModel>[]
                 {
-                    data => ValidateEmail(data.OldEmail, "OldEmail"),
-                    data => ValidateEmail(data.NewEmail, "NewEmail"),
-                    data => ValidateLength(data.OldEmail, "OldEmail", 254, "Old email cannot exceed 254 characters."),
-                    data => ValidateLength(data.NewEmail, "NewEmail", 254, "New email cannot exceed 254 characters.")
+                    data => ValidateRequired(data.OldEmail, nameof(data.OldEmail)),
+                    data => ValidateRequired(data.NewEmail, nameof(data.NewEmail)),
+                    data => ValidateEmail(data.OldEmail, nameof(data.OldEmail)),
+                    data => ValidateEmail(data.NewEmail, nameof(data.NewEmail)),
+                    data => ValidateLength(data.OldEmail, nameof(data.OldEmail), 254),
+                    data => ValidateLength(data.NewEmail, nameof(data.NewEmail), 254)
                 });
         }
 
@@ -156,8 +177,10 @@ namespace FurniroomAPI.Controllers
                 data => JsonSerializer.Serialize(data),
                 new Action<ChangePasswordModel>[]
                 {
-                    data => ValidateLength(data.OldPasswordHash, "OldPasswordHash", 128, "Old password hash cannot exceed 128 characters."),
-                    data => ValidateLength(data.NewPasswordHash, "NewPasswordHash", 128, "New password hash cannot exceed 128 characters.")
+                    data => ValidateRequired(data.OldPasswordHash, nameof(data.OldPasswordHash)),
+                    data => ValidateRequired(data.NewPasswordHash, nameof(data.NewPasswordHash)),
+                    data => ValidateLength(data.OldPasswordHash, nameof(data.OldPasswordHash), 128),
+                    data => ValidateLength(data.NewPasswordHash, nameof(data.NewPasswordHash), 128)
                 });
         }
 
@@ -170,23 +193,36 @@ namespace FurniroomAPI.Controllers
                 data => $"accountId={data}",
                 new Action<int?>[]
                 {
-                    data => ValidateDigit(data, "Account ID must be a positive number.")
+                    data => ValidateRequired(data, nameof(data)),
+                    data => ValidateDigit((int)data, nameof(data))
                 });
         }
 
-        private void ValidateDigit(int? value, string errorMessage)
+        private void ValidateRequired(object value, string fieldName)
         {
-            if (!_validationService.IsValidDigit(value))
+            if (value == null)
             {
-                ModelState.AddModelError("AccountId", errorMessage);
+                ModelState.AddModelError(fieldName, $"Field '{fieldName}' is missing");
+            }
+            else if (value is string strValue && string.IsNullOrWhiteSpace(strValue))
+            {
+                ModelState.AddModelError(fieldName, $"Field '{fieldName}' cannot be empty");
             }
         }
 
-        private void ValidateLength(string value, string fieldName, int maxLength, string errorMessage)
+        private void ValidateDigit(int value, string fieldName)
+        {
+            if (!_validationService.IsValidDigit(value))
+            {
+                ModelState.AddModelError(fieldName, $"Field '{fieldName}' must be positive number");
+            }
+        }
+
+        private void ValidateLength(string value, string fieldName, int maxLength)
         {
             if (!_validationService.IsValidLength(value, maxLength))
             {
-                ModelState.AddModelError(fieldName, errorMessage);
+                ModelState.AddModelError(fieldName, $"Field '{fieldName}' cannot exceed {maxLength} characters");
             }
         }
 
@@ -194,7 +230,7 @@ namespace FurniroomAPI.Controllers
         {
             if (!_validationService.IsValidEmail(email))
             {
-                ModelState.AddModelError(fieldName, "Email should be in format: example@domain.com");
+                ModelState.AddModelError(fieldName, $"Field '{fieldName}' must be valid email (example@domain.com)");
             }
         }
     }

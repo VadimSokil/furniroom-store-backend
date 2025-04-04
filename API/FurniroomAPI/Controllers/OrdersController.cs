@@ -4,6 +4,7 @@ using FurniroomAPI.Models.Orders;
 using FurniroomAPI.Models.Response;
 using Microsoft.AspNetCore.Mvc;
 using System.ComponentModel.DataAnnotations;
+using System.Net;
 using System.Text.Json;
 
 namespace FurniroomAPI.Controllers
@@ -43,12 +44,33 @@ namespace FurniroomAPI.Controllers
 
             if (!ModelState.IsValid)
             {
-                return await HandleValidationError(transfer, formattedTime);
+                var typeErrors = ModelState
+                    .Where(x => x.Value.Errors.Any(e => e.Exception != null))
+                    .Select(x => $"Field '{x.Key}' has invalid type");
+
+                if (typeErrors.Any())
+                {
+                    await LogActionAsync("Type validation failed", transfer);
+                    return new APIResponseModel
+                    {
+                        Date = formattedTime,
+                        Status = false,
+                        Message = string.Join("; ", typeErrors)
+                    };
+                }
+
+                await LogActionAsync("Invalid request structure", transfer);
+                return new APIResponseModel
+                {
+                    Date = formattedTime,
+                    Status = false,
+                    Message = "Invalid request structure"
+                };
             }
 
-            foreach (var validate in validations)
+            foreach (var validation in validations)
             {
-                validate(requestData);
+                validation(requestData);
             }
 
             if (!ModelState.IsValid)
@@ -74,20 +96,15 @@ namespace FurniroomAPI.Controllers
             var errorMessages = ModelState.Values
                 .SelectMany(v => v.Errors)
                 .Select(e => e.ErrorMessage)
-                .Where(m => !string.IsNullOrEmpty(m))
-                .Distinct();
+                .Where(m => !string.IsNullOrEmpty(m));
 
-            string message = errorMessages.Any()
-                ? string.Join("; ", errorMessages)
-                : "Invalid request structure";
-
-            await LogActionAsync($"Validation failed: {message}", transfer);
+            await LogActionAsync($"Validation failed: {string.Join("; ", errorMessages)}", transfer);
 
             return new APIResponseModel
             {
                 Date = formattedTime,
                 Status = false,
-                Message = message
+                Message = string.Join("; ", errorMessages)
             };
         }
 
@@ -110,10 +127,11 @@ namespace FurniroomAPI.Controllers
             return await ProcessRequest(
                 accountId,
                 (data, transfer) => _ordersService.GetAccountOrdersAsync((int)data, transfer),
-                data => $"accountId={data}",
+                data => $"accountId={WebUtility.UrlEncode(data.ToString())}",
                 new Action<int?>[]
                 {
-                    data => ValidateDigit(data, "OrderId", "Order ID must be a positive number.")
+                    data => ValidateRequired(data, nameof(data)),
+                    data => ValidateDigit((int)data, nameof(data))
                 });
         }
 
@@ -126,21 +144,25 @@ namespace FurniroomAPI.Controllers
                 data => JsonSerializer.Serialize(data),
                 new Action<OrderModel>[]
                 {
-                    data => ValidateDigit(data.OrderId, "OrderId", "Order ID must be a positive number."),
-                    data => ValidateLength(data.OrderDate, "OrderDate", 20, "Order date cannot exceed 20 characters."),
-                    data => ValidateDigit(data.AccountId, "AccountId", "Account ID must be a positive number."),
-                    data => ValidatePhoneNumber(data.PhoneNumber, "PhoneNumber"),
-                    data => ValidateLength(data.PhoneNumber, "PhoneNumber", 20, "Phone number cannot exceed 20 characters."),
-                    data => ValidateLength(data.Country, "Country", 100, "Country cannot exceed 100 characters."),
-                    data => ValidateLength(data.Region, "Region", 100, "Region cannot exceed 100 characters."),
-                    data => ValidateLength(data.District, "District", 100, "District cannot exceed 100 characters."),
-                    data => ValidateLength(data.City, "City", 100, "City cannot exceed 100 characters."),
-                    data => ValidateLength(data.Village, "Village", 100, "Village cannot exceed 100 characters."),
-                    data => ValidateLength(data.Street, "Street", 100, "Street cannot exceed 100 characters."),
-                    data => ValidateLength(data.HouseNumber, "HouseNumber", 20, "House number cannot exceed 20 characters."),
-                    data => ValidateLength(data.ApartmentNumber, "ApartmentNumber", 20, "Apartment number cannot exceed 20 characters."),
-                    data => ValidateLength(data.OrderText, "OrderText", 5000, "Order text cannot exceed 5000 characters."),
-                    data => ValidateLength(data.DeliveryType, "DeliveryType", 20, "Delivery type cannot exceed 20 characters.")
+                    data => ValidateRequired(data.OrderId, nameof(data.OrderId)),
+                    data => ValidateDigit((int)data.OrderId, nameof(data.OrderId)),
+                    data => ValidateRequired(data.OrderDate, nameof(data.OrderDate)),
+                    data => ValidateLength(data.OrderDate, nameof(data.OrderDate), 20),
+                    data => ValidateRequired(data.AccountId, nameof(data.AccountId)),
+                    data => ValidateDigit((int)data.AccountId, nameof(data.AccountId)),
+                    data => ValidateRequired(data.PhoneNumber, nameof(data.PhoneNumber)),
+                    data => ValidatePhoneNumber(data.PhoneNumber, nameof(data.PhoneNumber)),
+                    data => ValidateLength(data.PhoneNumber, nameof(data.PhoneNumber), 20),
+                    data => ValidateLength(data.Country, nameof(data.Country), 100),
+                    data => ValidateLength(data.Region, nameof(data.Region), 100),
+                    data => ValidateLength(data.District, nameof(data.District), 100),
+                    data => ValidateLength(data.City, nameof(data.City), 100),
+                    data => ValidateLength(data.Village, nameof(data.Village), 100),
+                    data => ValidateLength(data.Street, nameof(data.Street), 100),
+                    data => ValidateLength(data.HouseNumber, nameof(data.HouseNumber), 20),
+                    data => ValidateLength(data.ApartmentNumber, nameof(data.ApartmentNumber), 20),
+                    data => ValidateLength(data.OrderText, nameof(data.OrderText), 5000),
+                    data => ValidateLength(data.DeliveryType, nameof(data.DeliveryType), 20)
                 });
         }
 
@@ -153,30 +175,48 @@ namespace FurniroomAPI.Controllers
                 data => JsonSerializer.Serialize(data),
                 new Action<QuestionModel>[]
                 {
-                    data => ValidateDigit(data.QuestionId, "QuestionId", "Question ID must be a positive number."),
-                    data => ValidateLength(data.QuestionDate, "QuestionDate", 20, "Question date cannot exceed 20 characters."),
-                    data => ValidateLength(data.UserName, "UserName", 50, "User name cannot exceed 50 characters."),
-                    data => ValidatePhoneNumber(data.PhoneNumber, "PhoneNumber"),
-                    data => ValidateLength(data.PhoneNumber, "PhoneNumber", 20, "Phone number cannot exceed 20 characters."),
-                    data => ValidateEmail(data.Email, "Email"),
-                    data => ValidateLength(data.Email, "Email", 254, "Email cannot exceed 254 characters."),
-                    data => ValidateLength(data.QuestionText, "QuestionText", 5000, "Question text cannot exceed 5000 characters.")
+                    data => ValidateRequired(data.QuestionId, nameof(data.QuestionId)),
+                    data => ValidateDigit((int)data.QuestionId, nameof(data.QuestionId)),
+                    data => ValidateRequired(data.QuestionDate, nameof(data.QuestionDate)),
+                    data => ValidateLength(data.QuestionDate, nameof(data.QuestionDate), 20),
+                    data => ValidateRequired(data.UserName, nameof(data.UserName)),
+                    data => ValidateLength(data.UserName, nameof(data.UserName), 50),
+                    data => ValidateRequired(data.PhoneNumber, nameof(data.PhoneNumber)),
+                    data => ValidatePhoneNumber(data.PhoneNumber, nameof(data.PhoneNumber)),
+                    data => ValidateLength(data.PhoneNumber, nameof(data.PhoneNumber), 20),
+                    data => ValidateRequired(data.Email, nameof(data.Email)),
+                    data => ValidateEmail(data.Email, nameof(data.Email)),
+                    data => ValidateLength(data.Email, nameof(data.Email), 254),
+                    data => ValidateRequired(data.QuestionText, nameof(data.QuestionText)),
+                    data => ValidateLength(data.QuestionText, nameof(data.QuestionText), 5000)
                 });
         }
 
-        private void ValidateDigit(int? value, string fieldName, string errorMessage)
+        private void ValidateRequired(object value, string fieldName)
         {
-            if (!_validationService.IsValidDigit(value))
+            if (value == null)
             {
-                ModelState.AddModelError(fieldName, errorMessage);
+                ModelState.AddModelError(fieldName, $"Field '{fieldName}' is missing");
+            }
+            else if (value is string strValue && string.IsNullOrWhiteSpace(strValue))
+            {
+                ModelState.AddModelError(fieldName, $"Field '{fieldName}' cannot be empty");
             }
         }
 
-        private void ValidateLength(string value, string fieldName, int maxLength, string errorMessage)
+        private void ValidateDigit(int value, string fieldName)
+        {
+            if (!_validationService.IsValidDigit(value))
+            {
+                ModelState.AddModelError(fieldName, $"Field '{fieldName}' must be positive number");
+            }
+        }
+
+        private void ValidateLength(string value, string fieldName, int maxLength)
         {
             if (!_validationService.IsValidLength(value, maxLength))
             {
-                ModelState.AddModelError(fieldName, errorMessage);
+                ModelState.AddModelError(fieldName, $"Field '{fieldName}' cannot exceed {maxLength} characters");
             }
         }
 
@@ -184,7 +224,7 @@ namespace FurniroomAPI.Controllers
         {
             if (!_validationService.IsValidEmail(email))
             {
-                ModelState.AddModelError(fieldName, "Email should be in format: example@domain.com");
+                ModelState.AddModelError(fieldName, $"Field '{fieldName}' must be valid email (example@domain.com)");
             }
         }
 
@@ -193,7 +233,7 @@ namespace FurniroomAPI.Controllers
             if (!_validationService.IsValidPhoneNumber(phoneNumber))
             {
                 ModelState.AddModelError(fieldName,
-                    "Phone number should be in international format: +CCCXXXXXXXXXX");
+                    $"Field '{fieldName}' must be in international format: +CCCXXXXXXXXXX");
             }
         }
     }
