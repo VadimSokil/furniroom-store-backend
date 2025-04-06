@@ -148,6 +148,19 @@ namespace FurniroomAPI.Controllers
                 });
         }
 
+        [HttpGet("check-name")]
+        public async Task<ActionResult<APIResponseModel>> CheckName([FromQuery][Required] string name)
+        {
+            return await ProcessRequest(
+                name,
+                (data, transfer) => _authorizationService.CheckNameAsync(data, transfer),
+                data => $"name={WebUtility.UrlEncode(data)}",
+                new Action<string>[]
+                {
+                    data => ValidateLength(data, "AccountName", 50)
+                });
+        }
+
         [HttpGet("generate-verification-code")]
         public async Task<ActionResult<APIResponseModel>> GenerateCode([FromQuery][Required] string email)
         {

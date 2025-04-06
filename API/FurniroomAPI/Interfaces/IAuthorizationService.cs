@@ -7,6 +7,7 @@ namespace FurniroomAPI.Interfaces
     public interface IAuthorizationService
     {
         public Task<ServiceResponseModel> CheckEmailAsync(string email, TransferLogModel transfer);
+        public Task<ServiceResponseModel> CheckNameAsync(string name, TransferLogModel transfer);
         public Task<ServiceResponseModel> GenerateCodeAsync(string email, TransferLogModel transfer);
         public Task<ServiceResponseModel> ResetPasswordAsync(string email, TransferLogModel transfer);
         public Task<ServiceResponseModel> SignUpAsync(SignUpModel signUp, TransferLogModel transfer);

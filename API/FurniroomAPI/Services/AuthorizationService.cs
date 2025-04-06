@@ -38,13 +38,33 @@ namespace FurniroomAPI.Services
 
                     return new ServiceResponseModel
                     {
-                        Status = true,
+                        Status = result == 0,
                         Message = result > 0
                             ? "This email address is already in use."
                             : "This email address is available."
                     };
                 }
             }, "Check email", transfer);
+        }
+
+        public async Task<ServiceResponseModel> CheckNameAsync(string name, TransferLogModel transfer)
+        {
+            return await ExecuteDatabaseOperation(async (connection) =>
+            {
+                using (var command = new MySqlCommand(_requests["CheckName"], connection))
+                {
+                    command.Parameters.AddWithValue("@AccountName", name);
+                    var result = Convert.ToInt32(await command.ExecuteScalarAsync());
+
+                    return new ServiceResponseModel
+                    {
+                        Status = result == 0,
+                        Message = result > 0
+                            ? "This account name is already in use."
+                            : "This account name is available."
+                    };
+                }
+            }, "Check name", transfer);
         }
 
         public async Task<ServiceResponseModel> GenerateCodeAsync(string email, TransferLogModel transfer)
