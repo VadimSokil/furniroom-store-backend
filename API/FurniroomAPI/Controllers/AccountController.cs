@@ -127,6 +127,7 @@ namespace FurniroomAPI.Controllers
                 data => JsonSerializer.Serialize(data),
                 new Action<ChangeNameModel>[]
                 {
+                    data => ValidateDigit((int)data.AccountId, nameof(data.AccountId)),
                     data => ValidateLength(data.OldName, nameof(data.OldName), 50),
                     data => ValidateLength(data.NewName, nameof(data.NewName), 50)
                 });
@@ -141,6 +142,7 @@ namespace FurniroomAPI.Controllers
                 data => JsonSerializer.Serialize(data),
                 new Action<ChangeEmailModel>[]
                 {
+                    data => ValidateDigit((int)data.AccountId, nameof(data.AccountId)),
                     data => ValidateEmail(data.OldEmail, nameof(data.OldEmail)),
                     data => ValidateEmail(data.NewEmail, nameof(data.NewEmail)),
                     data => ValidateLength(data.OldEmail, nameof(data.OldEmail), 254),
@@ -157,6 +159,7 @@ namespace FurniroomAPI.Controllers
                 data => JsonSerializer.Serialize(data),
                 new Action<ChangePasswordModel>[]
                 {
+                    data => ValidateDigit((int)data.AccountId, nameof(data.AccountId)),
                     data => ValidateLength(data.OldPasswordHash, nameof(data.OldPasswordHash), 128),
                     data => ValidateLength(data.NewPasswordHash, nameof(data.NewPasswordHash), 128)
                 });

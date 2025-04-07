@@ -56,9 +56,10 @@ namespace FurniroomAPI.Services
                 using (var checkCommand = new MySqlCommand(_requests["CheckOldAccountName"], connection))
                 {
                     checkCommand.Parameters.AddWithValue("@OldName", changeName.OldName);
+                    checkCommand.Parameters.AddWithValue("@AccountId", changeName.AccountId);
                     if (Convert.ToInt32(await checkCommand.ExecuteScalarAsync()) == 0)
                     {
-                        return CreateErrorResponse("Old name not found.");
+                        return CreateErrorResponse("Old name does not match the current account.");
                     }
                 }
 
@@ -73,6 +74,7 @@ namespace FurniroomAPI.Services
 
                 using (var command = new MySqlCommand(_requests["ChangeAccountName"], connection))
                 {
+                    command.Parameters.AddWithValue("@AccountId", changeName.AccountId);
                     command.Parameters.AddWithValue("@OldName", changeName.OldName);
                     command.Parameters.AddWithValue("@NewName", changeName.NewName);
                     await command.ExecuteNonQueryAsync();
@@ -93,9 +95,10 @@ namespace FurniroomAPI.Services
                 using (var checkCommand = new MySqlCommand(_requests["CheckOldEmail"], connection))
                 {
                     checkCommand.Parameters.AddWithValue("@OldEmail", changeEmail.OldEmail);
+                    checkCommand.Parameters.AddWithValue("@AccountId", changeEmail.AccountId);
                     if (Convert.ToInt32(await checkCommand.ExecuteScalarAsync()) == 0)
                     {
-                        return CreateErrorResponse("Old email not found.");
+                        return CreateErrorResponse("Old email does not match the current account.");
                     }
                 }
 
@@ -110,6 +113,7 @@ namespace FurniroomAPI.Services
 
                 using (var command = new MySqlCommand(_requests["ChangeEmail"], connection))
                 {
+                    command.Parameters.AddWithValue("@AccountId", changeEmail.AccountId);
                     command.Parameters.AddWithValue("@OldEmail", changeEmail.OldEmail);
                     command.Parameters.AddWithValue("@NewEmail", changeEmail.NewEmail);
                     await command.ExecuteNonQueryAsync();
@@ -129,13 +133,14 @@ namespace FurniroomAPI.Services
             {
                 using (var command = new MySqlCommand(_requests["ChangePassword"], connection))
                 {
+                    command.Parameters.AddWithValue("@AccountId", changePassword.AccountId);
                     command.Parameters.AddWithValue("@OldPasswordHash", changePassword.OldPasswordHash);
                     command.Parameters.AddWithValue("@NewPasswordHash", changePassword.NewPasswordHash);
 
                     int affectedRows = await command.ExecuteNonQueryAsync();
                     if (affectedRows == 0)
                     {
-                        return CreateErrorResponse("Old password not found.");
+                        return CreateErrorResponse("Old password does not match the current account.");
                     }
                 }
 
