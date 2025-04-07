@@ -123,8 +123,7 @@ namespace FurniroomAPI.Services
                 return new ServiceResponseModel
                 {
                     Status = true,
-                    Message = "Password successfully reset.",
-                    Data = newPassword
+                    Message = "Password successfully reset."
                 };
             }, "Reset password", transfer);
         }

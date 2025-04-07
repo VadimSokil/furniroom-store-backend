@@ -60,19 +60,7 @@ namespace FurniroomAPI.Controllers
 
             if (!ModelState.IsValid)
             {
-                var errorMessages = ModelState.Values
-                    .SelectMany(v => v.Errors)
-                    .Select(e => e.ErrorMessage)
-                    .Where(m => !string.IsNullOrEmpty(m));
-
-                await LogActionAsync($"Validation failed: {string.Join("; ", errorMessages)}", transfer);
-
-                return new APIResponseModel
-                {
-                    Date = formattedTime,
-                    Status = false,
-                    Message = string.Join("; ", errorMessages)
-                };
+                return await HandleValidationError(transfer, formattedTime);
             }
 
             var serviceResponse = await serviceCall(requestData, transfer);
@@ -86,6 +74,23 @@ namespace FurniroomAPI.Controllers
 
             await LogActionAsync("Request completed", transfer);
             return Ok(gatewayResponse);
+        }
+
+        private async Task<ActionResult<APIResponseModel>> HandleValidationError(TransferLogModel transfer, string formattedTime)
+        {
+            var errorMessages = ModelState.Values
+                .SelectMany(v => v.Errors)
+                .Select(e => e.ErrorMessage)
+                .Where(m => !string.IsNullOrEmpty(m));
+
+            await LogActionAsync($"Validation failed: {string.Join("; ", errorMessages)}", transfer);
+
+            return new APIResponseModel
+            {
+                Date = formattedTime,
+                Status = false,
+                Message = string.Join("; ", errorMessages)
+            };
         }
 
         [HttpPost("sign-up")]
@@ -120,13 +125,13 @@ namespace FurniroomAPI.Controllers
                 });
         }
 
-        [HttpPost("reset-password")]
-        public async Task<ActionResult<APIResponseModel>> ResetPassword([FromBody][Required] string email)
+        [HttpGet("reset-password")]
+        public async Task<ActionResult<APIResponseModel>> ResetPassword([FromQuery][Required] string email)
         {
             return await ProcessRequest(
                 email,
                 (data, transfer) => _authorizationService.ResetPasswordAsync(data, transfer),
-                data => string.Empty,
+                data => $"email={WebUtility.UrlEncode(data)}",
                 new Action<string>[]
                 {
                     data => ValidateEmail(data, "Email"),
@@ -167,7 +172,7 @@ namespace FurniroomAPI.Controllers
             return await ProcessRequest(
                 email,
                 (data, transfer) => _authorizationService.GenerateCodeAsync(data, transfer),
-                data => string.Empty,
+                data => $"email={WebUtility.UrlEncode(data)}",
                 new Action<string>[]
                 {
                     data => ValidateEmail(data, "Email"),
